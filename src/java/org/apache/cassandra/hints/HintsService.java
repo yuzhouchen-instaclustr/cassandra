@@ -188,7 +188,7 @@ public final class HintsService implements HintsServiceMBean
         // judicious use of streams: eagerly materializing probably cheaper
         // than performing filters / translations 2x extra via Iterables.filter/transform
         List<UUID> hostIds = replicas.stream()
-                .filter(StorageProxy::shouldHint)
+                .filter(replica -> StorageProxy.shouldHint(replica, false))
                 .map(replica -> StorageService.instance.getHostIdForEndpoint(replica.endpoint()))
                 .collect(Collectors.toList());
 
@@ -388,6 +388,20 @@ public final class HintsService implements HintsServiceMBean
         catalog.stores().forEach(dispatchExecutor::completeDispatchBlockingly);
 
         return dispatchExecutor.transfer(catalog, hostIdSupplier);
+    }
+
+    /**
+     * Get the earliest hint written for a particular node,
+     * @param hostId UUID of the node to check it's hints.
+     * @return earliest hint as per unix time or Long.MIN_VALUE if hostID is null
+     */
+    public long getEarliestHintForHost(UUID hostId)
+    {
+        // Need to check only the first descriptor + all buffers.
+        HintsStore store = catalog.get(hostId);
+        HintsDescriptor desc = store.getFirstDescriptor();
+        long timestamp = desc == null ? System.currentTimeMillis() : desc.timestamp;
+        return Math.min(timestamp, bufferPool.getEarliestHintForHost(hostId));
     }
 
     HintsCatalog getCatalog()

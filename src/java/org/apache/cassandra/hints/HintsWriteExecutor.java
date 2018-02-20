@@ -185,7 +185,7 @@ final class HintsWriteExecutor
         {
             HintsBuffer buffer = bufferPool.currentBuffer();
             buffer.waitForModifications();
-            stores.forEach(store -> flush(buffer.consumingHintsIterator(store.hostId), store));
+            stores.forEach(store -> flush(buffer.consumingHintsIterator(store.hostId), store, buffer));
         }
     }
 
@@ -207,10 +207,10 @@ final class HintsWriteExecutor
 
     private void flush(HintsBuffer buffer)
     {
-        buffer.hostIds().forEach(hostId -> flush(buffer.consumingHintsIterator(hostId), catalog.get(hostId)));
+        buffer.hostIds().forEach(hostId -> flush(buffer.consumingHintsIterator(hostId), catalog.get(hostId), buffer));
     }
 
-    private void flush(Iterator<ByteBuffer> iterator, HintsStore store)
+    private void flush(Iterator<ByteBuffer> iterator, HintsStore store, HintsBuffer buffer)
     {
         while (true)
         {
@@ -222,7 +222,14 @@ final class HintsWriteExecutor
 
             // exceeded the size limit for an individual file, but still have more to write
             // close the current writer and continue flushing to a new one in the next iteration
-            store.closeWriter();
+            try
+            {
+                store.closeWriter();
+            }
+            finally
+            {
+                buffer.clearEarliesHintForHostId(store.hostId);
+            }
         }
     }
 
