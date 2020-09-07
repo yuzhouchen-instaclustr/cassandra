@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,7 +62,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
-import org.apache.mina.util.ConcurrentHashSet;
 
 public class MigrationCoordinator implements IEndpointStateChangeSubscriber
 {
@@ -78,8 +78,8 @@ public class MigrationCoordinator implements IEndpointStateChangeSubscriber
     {
         final UUID version;
 
-        final Set<InetAddress> endpoints           = new ConcurrentHashSet<>();
-        final Set<InetAddress> outstandingRequests = new ConcurrentHashSet<>();
+        final Set<InetAddress> endpoints           = Sets.newConcurrentHashSet();
+        final Set<InetAddress> outstandingRequests = Sets.newConcurrentHashSet();
         final Deque<InetAddress> requestQueue      = new LinkedList<>();
 
         private final WaitQueue waitQueue = new WaitQueue();
