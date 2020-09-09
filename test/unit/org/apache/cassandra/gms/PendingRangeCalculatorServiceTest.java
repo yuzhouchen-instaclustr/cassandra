@@ -126,6 +126,7 @@ public class PendingRangeCalculatorServiceTest
                 StorageService.instance.valueFactory.bootstrapping(tokens) : StorageService.instance.valueFactory.normal(tokens));
         state.addApplicationState(ApplicationState.HOST_ID, StorageService.instance.valueFactory.hostId(hostId));
         state.addApplicationState(ApplicationState.NET_VERSION, StorageService.instance.valueFactory.networkVersion());
+        state.addApplicationState(ApplicationState.RELEASE_VERSION, StorageService.instance.valueFactory.releaseVersion());
 
         Map<InetAddress, EndpointState> states = new HashMap<>();
         states.put(otherNodeAddr, state);
