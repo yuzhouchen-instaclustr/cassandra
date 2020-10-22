@@ -25,6 +25,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class EndpointSnitchInfo implements EndpointSnitchInfoMBean
 {
@@ -44,6 +45,11 @@ public class EndpointSnitchInfo implements EndpointSnitchInfoMBean
     public String getDatacenter(String host) throws UnknownHostException
     {
         return DatabaseDescriptor.getEndpointSnitch().getDatacenter(InetAddress.getByName(host));
+    }
+
+    public String getDatacenter()
+    {
+        return DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
     }
 
     public String getRack(String host) throws UnknownHostException
