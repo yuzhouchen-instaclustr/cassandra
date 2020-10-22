@@ -1,3 +1,6 @@
+3.0.22.1:
+ * Rebuild from targeted replica (CASSANDRA-9875)
+
 3.0.22:
  * Fix gossip shutdown order (CASSANDRA-15816)
  * Remove broken 'defrag-on-read' optimization (CASSANDRA-15432)
