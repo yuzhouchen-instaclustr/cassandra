@@ -1,3 +1,6 @@
+2.2.15.1
+ * Rebuild from targeted replica (CASSANDRA-9875)
+
 2.2.15
  * Catch non-IOException in FileUtils.close to make sure that all resources are closed (CASSANDRA-15225)
  * Handle exceptions during authentication/authorization (CASSANDRA-15041)
