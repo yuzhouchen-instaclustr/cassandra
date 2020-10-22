@@ -1,3 +1,6 @@
+2.2.18.1
+ * Rebuild from targeted replica (CASSANDRA-9875)
+
 2.2.18
  * Fix CQL parsing of collections when the column type is reversed (CASSANDRA-15814)
 Merged from 2.1:
