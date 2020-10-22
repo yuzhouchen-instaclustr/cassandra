@@ -1,3 +1,6 @@
+3.0.19.1
+ * Rebuild from targeted replica (CASSANDRA-9875)
+
 3.0.19
  * Add ability to cap max negotiable protocol version (CASSANDRA-15193)
  * Gossip tokens on startup if available (CASSANDRA-15335)
