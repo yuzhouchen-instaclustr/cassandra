@@ -1,3 +1,6 @@
+2.1.21.1
+ * Rebuild from targeted replica (CASSANDRA-9875)
+
 2.1.21
  * Paged Range Slice queries with DISTINCT can drop rows from results (CASSANDRA-14956)
  * Update release checksum algorithms to SHA-256, SHA-512 (CASSANDRA-14970)
