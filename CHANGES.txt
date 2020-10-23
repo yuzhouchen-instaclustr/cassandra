@@ -1,3 +1,6 @@
+3.11.4.2
+ * Wait for schema agreement rather than in flight schema requests when bootstrapping (CASSANDRA-15158)
+
 3.11.4.1
  * Reject empty options and invalid DC names in replication configuration while creating or altering a keyspace (CASSANDRA-12681)
 
