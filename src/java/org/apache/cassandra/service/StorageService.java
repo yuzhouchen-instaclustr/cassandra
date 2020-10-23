@@ -895,14 +895,53 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
-        // if our schema hasn't matched yet, wait until it has
-        // we do this by waiting for all in-flight migration requests and responses to complete
-        // (post CASSANDRA-1391 we don't expect this to be necessary very often, but it doesn't hurt to be careful)
-        if (!MigrationManager.isReadyForBootstrap())
+
+        int retryCount = 0;
+
+        //if we don't have the same schema as the rest of the live nodes, send new schema pull requests
+        while (!checkForSchemaAgreement())
         {
-            setMode(Mode.JOINING, "waiting for schema information to complete", true);
-            MigrationManager.waitUntilReadyForBootstrap();
+            setMode(Mode.JOINING, "schema not yet in agreement, sending new schema pull requests", true);
+            for (InetAddress remote :Gossiper.instance.getLiveTokenOwners())
+            {
+                if (!MigrationTask.hasInFlighSchemaRequest(remote))
+                {
+                    logger.debug("Resending schema request to: {}", remote.toString());
+                    MigrationManager.scheduleSchemaPullNoDelay(remote, Gossiper.instance.getEndpointStateForEndpoint(remote));
+                    Uninterruptibles.sleepUninterruptibly(DatabaseDescriptor.getMinRpcTimeout() +
+                                                          ((MigrationManager.instance.getMigrationTaskWaitInSeconds() * 1000)), TimeUnit.MILLISECONDS);
+                }
+                else
+                {
+                    logger.debug("Schema request already in progress with: {}", remote.toString());
+                    Uninterruptibles.sleepUninterruptibly(MigrationManager.instance.getMigrationTaskWaitInSeconds(), TimeUnit.SECONDS);
+                }
+
+                if (checkForSchemaAgreement())
+                    return;
+            }
+
+            retryCount++;
+
+            // Abort startup if we still cant find an agreement after resending a request to each node
+            if (retryCount > 1)
+                throw new RuntimeException("Couldn't achieve schema agreement after waiting for, or resending schema requests to each node");
+
         }
+    }
+
+    public boolean checkForSchemaAgreement()
+    {
+        UUID localVersion = Schema.instance.getVersion();
+        logger.debug("Local schema version: {}", Schema.schemaVersionToString(localVersion));
+        for (InetAddress remote :Gossiper.instance.getLiveTokenOwners())
+        {
+            UUID remoteVersion = Gossiper.instance.getSchemaVersion(remote);
+            logger.debug("Remote node {}, schema version: {}", remote.toString(), Schema.schemaVersionToString(remoteVersion));
+            if (!localVersion.equals(remoteVersion))
+                return false;
+        }
+        return true;
     }
 
     @VisibleForTesting
