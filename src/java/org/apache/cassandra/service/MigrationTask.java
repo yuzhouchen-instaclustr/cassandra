@@ -19,20 +19,22 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspace.BootstrapState;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.net.IAsyncCallback;
+import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -44,9 +46,17 @@ class MigrationTask extends WrappedRunnable
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationTask.class);
 
-    private static final ConcurrentLinkedQueue<CountDownLatch> inflightTasks = new ConcurrentLinkedQueue<>();
-
     private static final Set<BootstrapState> monitoringBootstrapStates = EnumSet.of(BootstrapState.NEEDS_BOOTSTRAP, BootstrapState.IN_PROGRESS);
+
+    private static final Comparator<InetAddress> inetcomparator = new Comparator<InetAddress>()
+    {
+        public int compare(InetAddress addr1, InetAddress addr2)
+        {
+            return addr1.getHostAddress().compareTo(addr2.getHostAddress());
+        }
+    };
+
+    private static final Set<InetAddress> inFlightRequests = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
 
     private final InetAddress endpoint;
 
@@ -55,9 +65,19 @@ class MigrationTask extends WrappedRunnable
         this.endpoint = endpoint;
     }
 
-    public static ConcurrentLinkedQueue<CountDownLatch> getInflightTasks()
+    public static boolean addInFlightSchemaRequest(InetAddress ep)
     {
-        return inflightTasks;
+        return inFlightRequests.add(ep);
+    }
+
+    public static boolean completedInFlightSchemaRequest(InetAddress ep)
+    {
+        return inFlightRequests.remove(ep);
+    }
+
+    public static boolean hasInFlighSchemaRequest(InetAddress ep)
+    {
+        return inFlightRequests.contains(ep);
     }
 
     public void runMayThrow() throws Exception
@@ -77,17 +97,23 @@ class MigrationTask extends WrappedRunnable
             return;
         }
 
+        if (monitoringBootstrapStates.contains(SystemKeyspace.getBootstrapState()) && !addInFlightSchemaRequest(endpoint))
+        {
+            logger.debug("Skipped sending a migration request: node {} already has a request in flight", endpoint);
+            return;
+        }
+
         MessageOut message = new MessageOut<>(MessagingService.Verb.MIGRATION_REQUEST, null, MigrationManager.MigrationsSerializer.instance);
 
-        final CountDownLatch completionLatch = new CountDownLatch(1);
 
-        IAsyncCallback<Collection<Mutation>> cb = new IAsyncCallback<Collection<Mutation>>()
+        IAsyncCallbackWithFailure<Collection<Mutation>>cb = new IAsyncCallbackWithFailure<Collection<Mutation>>()
         {
             @Override
             public void response(MessageIn<Collection<Mutation>> message)
             {
                 try
                 {
+                    logger.trace("Received response to schema request from {} at {}", message.from, System.currentTimeMillis());
                     SchemaKeyspace.mergeSchemaAndAnnounceVersion(message.payload);
                 }
                 catch (ConfigurationException e)
@@ -96,7 +122,7 @@ class MigrationTask extends WrappedRunnable
                 }
                 finally
                 {
-                    completionLatch.countDown();
+                    completedInFlightSchemaRequest(endpoint);
                 }
             }
 
@@ -104,12 +130,14 @@ class MigrationTask extends WrappedRunnable
             {
                 return false;
             }
+
+            public void onFailure(InetAddress from, RequestFailureReason failureReason)
+            {
+                logger.warn("Timed out waiting for schema response from {} at {}", endpoint, System.currentTimeMillis());
+                completedInFlightSchemaRequest(endpoint);
+            }
         };
-
-        // Only save the latches if we need bootstrap or are bootstrapping
-        if (monitoringBootstrapStates.contains(SystemKeyspace.getBootstrapState()))
-            inflightTasks.offer(completionLatch);
-
-        MessagingService.instance().sendRR(message, endpoint, cb);
+        logger.trace("Sending schema pull request to {} at {} with timeout {}", endpoint, System.currentTimeMillis(), message.getTimeout());
+        MessagingService.instance().sendRR(message, endpoint, cb, message.getTimeout(), true);
     }
 }
