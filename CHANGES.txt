@@ -1,3 +1,8 @@
+3.11.5.1
+ * Reject empty options and invalid DC names in replication configuration while creating or altering a keyspace (CASSANDRA-12681)
+ * Wait for schema agreement rather than in flight schema requests when bootstrapping (CASSANDRA-15158)
+ * LegacyLayout does not have same behavior as 2.x when handling unknown column names (CASSANDRA-15081)
+
 3.11.5
  * Fix SASI non-literal string comparisons (range operators) (CASSANDRA-15169)
  * Make sure user defined compaction transactions are always closed (CASSANDRA-15123)
