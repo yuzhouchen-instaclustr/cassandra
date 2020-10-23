@@ -1,3 +1,7 @@
+3.11.6.1
+ * Reject empty options and invalid DC names in replication configuration while creating or altering a keyspace (CASSANDRA-12681)
+ * Wait for schema agreement rather than in flight schema requests when bootstrapping (CASSANDRA-15158)
+
 3.11.6
  * Fix bad UDT sstable metadata serialization headers written by C* 3.0 on upgrade and in sstablescrub (CASSANDRA-15035)
  * Fix nodetool compactionstats showing extra pending task for TWCS - patch implemented (CASSANDRA-15409)
