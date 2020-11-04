@@ -21,12 +21,17 @@ import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CharMatcher;
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -47,6 +52,8 @@ import static org.apache.cassandra.io.sstable.Component.separator;
 public class Descriptor
 {
     public static String TMP_EXT = ".tmp";
+    private static final Pattern FORWARD_SLASH_PATTERN = Pattern.compile("/");
+    private static final Pattern INDEX_DIR_PATTERN = Pattern.compile("\\.");
 
     /** canonicalized path to the directory where SSTable resides */
     public final File directory;
@@ -291,25 +298,9 @@ public class Descriptor
         String ksname, cfname;
         if (version.hasNewFileName())
         {
-            // for 2.1+ read ks and cf names from directory
-            File cfDirectory = parentDirectory;
-            // check if this is secondary index
-            String indexName = "";
-            if (Directories.isSecondaryIndexFolder(cfDirectory))
-            {
-                indexName = cfDirectory.getName();
-                cfDirectory = cfDirectory.getParentFile();
-            }
-            if (cfDirectory.getName().equals(Directories.BACKUPS_SUBDIR))
-            {
-                cfDirectory = cfDirectory.getParentFile();
-            }
-            else if (cfDirectory.getParentFile().getName().equals(Directories.SNAPSHOT_SUBDIR))
-            {
-                cfDirectory = cfDirectory.getParentFile().getParentFile();
-            }
-            cfname = cfDirectory.getName().split("-")[0] + indexName;
-            ksname = cfDirectory.getParentFile().getName();
+            final Pair<String, String> keyspaceAndTable = parseKeyspaceAndTable(new File(directory, name));
+            cfname = keyspaceAndTable.left;
+            ksname = keyspaceAndTable.right;
         }
         else
         {
@@ -322,6 +313,118 @@ public class Descriptor
                                           // _assume_ version from version
                                           Component.digestFor(version.uncompressedChecksumType())),
                            component);
+    }
+
+    public static Pair<String, String> parseKeyspaceAndTable(final File file)
+    {
+        return parseKeyspaceAndTable(DatabaseDescriptor.getAllDataFileLocations(), file);
+    }
+
+    public static Pair<String, String> parseKeyspaceAndTable(final String[] dataLocations, final File file)
+    {
+        final String filePath = file.getAbsolutePath();
+
+        final Optional<String> dataDir = Stream.of(dataLocations)
+                                               .sorted(Comparator.comparingInt(String::length).reversed())
+                                               .filter(path -> {
+                                                   String dataLocation = path.endsWith(File.separator) ?  path : path + File.separator;
+                                                   return filePath.startsWith(dataLocation);
+                                               }).findFirst();
+
+        final Function<String, String> enrichWithSeparator = (pattern) ->
+        {
+            assert pattern != null;
+
+            if (File.separator.equals("\\"))
+            {
+                return FORWARD_SLASH_PATTERN.matcher(pattern).replaceAll("\\\\");
+            }
+
+            return pattern;
+        };
+
+        final Function<String, String> parseTableName = (tableDir) ->
+        {
+            assert tableDir != null;
+
+            if (!tableDir.contains("-"))
+            {
+                return tableDir;
+            }
+            else
+            {
+                return tableDir.split("-")[0];
+            }
+        };
+
+        final Supplier<Pattern[]> patternsFunction = () ->
+        {
+            final String prefix = dataDir.orElse("(.*)");
+
+            return new Pattern[] {
+
+            // /some/path/ks/tab/snapshots/snapshot-name/.index/na-1-big-Index.db
+            Pattern.compile(enrichWithSeparator.apply(prefix + "/(.*)/(.*)/snapshots/(.*)/(\\..*)/(.*)")),
+            // /some/path/ks/tab/snapshots/snapshot-name/na-1-big-Index.db
+            Pattern.compile(enrichWithSeparator.apply(prefix + "/(.*)/(.*)/snapshots/(.*)/(.*)")),
+
+            // /some/path/ks/tab/backups/.index/na-1-big-Index.db
+            Pattern.compile(enrichWithSeparator.apply(prefix + "/(.*)/(.*)/backups/(\\..*)/(.*)")),
+            // /some/path/ks/tab/backups/na-1-big-Index.db
+            Pattern.compile(enrichWithSeparator.apply(prefix + "/(.*)/(.*)/backups/(.*)")),
+
+            // /some/path/ks/tab/.index/na-1-big-Index.db
+            Pattern.compile(enrichWithSeparator.apply(prefix + "/(.*)/(.*)/(\\..*)/(.*)")),
+            // /some/path/ks/tab/na-1-big-Index.db
+            Pattern.compile(enrichWithSeparator.apply(prefix + "/(.*)/(.*)/(.*)"))
+            };
+        };
+
+        final Pattern[] patterns = patternsFunction.get();
+
+        int keyspaceGroup = dataDir.isPresent() ? 1 : 2;
+        int tableGroup = dataDir.isPresent() ? 2 : 3;
+        int indexGroup = dataDir.isPresent() ? 3 : 4;
+        int indexGroupInSnapshots = dataDir.isPresent() ? 4 : 5;
+        int indexGroupInBackups = dataDir.isPresent() ? 3 : 4;
+
+        final Matcher indexFileInSnapshotMacher = patterns[0].matcher(filePath);
+        if (indexFileInSnapshotMacher.matches()) {
+            return Pair.create(indexFileInSnapshotMacher.group(keyspaceGroup),
+                               parseTableName.apply(indexFileInSnapshotMacher.group(tableGroup)) + indexFileInSnapshotMacher.group(indexGroupInSnapshots));
+        }
+
+        final Matcher snapshotFileMatcher = patterns[1].matcher(filePath);
+        if (snapshotFileMatcher.matches()) {
+            return Pair.create(snapshotFileMatcher.group(keyspaceGroup),
+                               parseTableName.apply(snapshotFileMatcher.group(tableGroup)));
+        }
+
+        final Matcher indexFileInBackupMatcher = patterns[2].matcher(filePath);
+        if (indexFileInBackupMatcher.matches()) {
+            return Pair.create(indexFileInBackupMatcher.group(keyspaceGroup),
+                               parseTableName.apply(indexFileInBackupMatcher.group(tableGroup)) + indexFileInBackupMatcher.group(indexGroupInBackups));
+        }
+
+        final Matcher backupFileMatcher = patterns[3].matcher(filePath);
+        if (backupFileMatcher.matches()) {
+            return Pair.create(backupFileMatcher.group(keyspaceGroup),
+                               parseTableName.apply(backupFileMatcher.group(tableGroup)));
+        }
+
+        final Matcher indexFileMatcher = patterns[4].matcher(filePath);
+        if (indexFileMatcher.matches()) {
+            return Pair.create(indexFileMatcher.group(keyspaceGroup),
+                               parseTableName.apply(indexFileMatcher.group(tableGroup)) + indexFileMatcher.group(indexGroup));
+        }
+
+        final Matcher normalFileMatcher = patterns[5].matcher(filePath);
+        if (normalFileMatcher.matches()) {
+            return Pair.create(normalFileMatcher.group(keyspaceGroup),
+                               parseTableName.apply(normalFileMatcher.group(tableGroup)));
+        }
+
+        throw new IllegalStateException("Unable to parse keyspace and table from " + filePath);
     }
 
     public IMetadataSerializer getMetadataSerializer()
