@@ -83,7 +83,7 @@
     <property name="maven-ant-tasks.version" value="2.1.3" />
     <property name="maven-ant-tasks.local" value="${user.home}/.m2/repository/org/apache/maven/maven-ant-tasks"/>
     <property name="maven-ant-tasks.url"
-              value="http://repo2.maven.org/maven2/org/apache/maven/maven-ant-tasks" />
+              value="https://repo.maven.apache.org/maven2/org/apache/maven/maven-ant-tasks" />
     <!-- details of how and which Maven repository we publish to -->
     <property name="maven.version" value="3.0.3" />
     <condition property="maven-repository-url" value="https://repository.apache.org/service/local/staging/deploy/maven2">
@@ -235,8 +235,7 @@
         <artifact:dependencies pathId="wikitext.classpath">
             <dependency groupId="com.datastax.wikitext" artifactId="wikitext-core-ant" version="1.3"/>
             <dependency groupId="org.fusesource.wikitext" artifactId="textile-core" version="1.3"/>
-            <remoteRepository refid="central"/>
-            <remoteRepository refid="apache"/>
+            <remoteRepository refid="central" url="https://repo1.maven.org/maven2"/>
         </artifact:dependencies>
         <taskdef classpathref="wikitext.classpath" resource="wikitexttasks.properties" />
         <wikitext-to-html markupLanguage="Textile">
@@ -272,7 +271,7 @@
       <typedef uri="antlib:org.apache.maven.artifact.ant" classpathref="maven-ant-tasks.classpath" />
 
       <!-- define the remote repositories we use -->
-      <artifact:remoteRepository id="central"   url="${artifact.remoteRepository.central}"/>
+      <artifact:remoteRepository id="central"   url="https://repo1.maven.org/maven2"/>
       <artifact:remoteRepository id="apache"    url="${artifact.remoteRepository.apache}"/>
 
       <macrodef name="install">
