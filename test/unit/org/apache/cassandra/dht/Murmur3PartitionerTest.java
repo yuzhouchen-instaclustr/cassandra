@@ -64,7 +64,7 @@ public class Murmur3PartitionerTest extends PartitionerTestCase
     @Test
     public void testSplitExceedMaximumCase()
     {
-        Murmur3Partitioner.LongToken left = new Murmur3Partitioner.LongToken(Long.MAX_VALUE - 100);
+        Murmur3Partitioner.LongToken left = new Murmur3Partitioner.Murmur3Token(Long.MAX_VALUE - 100);
         assertSplit(left, tok("a"), 16);
     }
 
@@ -73,7 +73,7 @@ public class Murmur3PartitionerTest extends PartitionerTestCase
     {
         qt().forAll(longs().between(Long.MIN_VALUE + 1, Long.MAX_VALUE))
             .check(token -> {
-                ByteBuffer key = Murmur3Partitioner.LongToken.keyForToken(new Murmur3Partitioner.LongToken(token));
+                ByteBuffer key = Murmur3Partitioner.Murmur3Token.keyForToken(new Murmur3Partitioner.Murmur3Token(token));
                 return Murmur3Partitioner.instance.getToken(key).token == token;
             });
     }

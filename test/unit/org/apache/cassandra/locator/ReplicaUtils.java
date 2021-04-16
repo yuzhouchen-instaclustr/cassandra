@@ -35,8 +35,8 @@ import static org.apache.cassandra.locator.Replica.transientReplica;
 
 public class ReplicaUtils
 {
-    public static final Range<Token> FULL_RANGE = new Range<>(Murmur3Partitioner.MINIMUM, Murmur3Partitioner.MINIMUM);
-    public static final AbstractBounds<PartitionPosition> FULL_BOUNDS = new Range<>(Murmur3Partitioner.MINIMUM.minKeyBound(), Murmur3Partitioner.MINIMUM.maxKeyBound());
+    public static final Range<Token> FULL_RANGE = new Range<>(Murmur3Partitioner.instance.getMinimumToken(), Murmur3Partitioner.instance.getMinimumToken());
+    public static final AbstractBounds<PartitionPosition> FULL_BOUNDS = new Range<>(Murmur3Partitioner.instance.getMinimumToken().minKeyBound(), Murmur3Partitioner.instance.getMinimumToken().maxKeyBound());
 
     public static Replica full(InetAddressAndPort endpoint)
     {

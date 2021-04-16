@@ -33,8 +33,7 @@ import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.dht.LongTokenProducingPartitioner.LongToken;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.StorageService;

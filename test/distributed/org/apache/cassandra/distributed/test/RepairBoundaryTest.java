@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.progress.ProgressEventType;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.dht.Murmur3Partitioner.*;
-import static org.apache.cassandra.dht.Murmur3Partitioner.LongToken.keyForToken;
+import static org.apache.cassandra.dht.Murmur3Partitioner.Murmur3Token.keyForToken;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;

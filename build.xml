@@ -595,6 +595,12 @@
             <exclusion groupId="net.java.dev.jna" artifactId="jna" />
             <exclusion groupId="net.java.dev.jna" artifactId="jna-platform" />
           </dependency>
+
+          <dependency groupId="net.openhft" artifactId="zero-allocation-hashing" version="0.11">
+              <exclusion groupId="com.google.code.findbugs" artifactId="jsr305" />
+              <exclusion groupId="com.intellij" artifactId="annotations" />
+          </dependency>
+
           <dependency groupId="com.google.code.findbugs" artifactId="jsr305" version="2.0.2" scope="provided"/>
           <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2">
             <exclusion groupId="it.unimi.dsi" artifactId="fastutil" />
@@ -796,6 +802,7 @@
         <dependency groupId="net.openhft" artifactId="chronicle-bytes"/>
         <dependency groupId="net.openhft" artifactId="chronicle-wire"/>
         <dependency groupId="net.openhft" artifactId="chronicle-threads"/>
+        <dependency groupId="net.openhft" artifactId="zero-allocation-hashing"/>
         <dependency groupId="org.fusesource" artifactId="sigar"/>
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>

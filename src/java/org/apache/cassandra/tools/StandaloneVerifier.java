@@ -18,12 +18,13 @@
  */
 package org.apache.cassandra.tools;
 
+import org.apache.cassandra.dht.LongTokenProducingPartitioner;
+import org.apache.cassandra.dht.LongTokenProducingPartitioner.LongToken;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.*;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
@@ -272,6 +273,6 @@ public class StandaloneVerifier
             throw new IllegalArgumentException("Unable to parse token range from " + line + "; format is left,right but saw " + split.length + " parts");
         long left = Long.parseLong(split[0]);
         long right = Long.parseLong(split[1]);
-        return new Range<>(new Murmur3Partitioner.LongToken(left), new Murmur3Partitioner.LongToken(right));
+        return new Range<>(new LongToken(left), new LongToken(right));
     }
 }

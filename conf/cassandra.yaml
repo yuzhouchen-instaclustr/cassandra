@@ -197,7 +197,8 @@ credentials_validity_in_ms: 2000
 # OrderPreservingPartitioner have been included for backward compatibility only.
 # For new clusters, you should NOT change this value.
 #
-partitioner: org.apache.cassandra.dht.Murmur3Partitioner
+#partitioner: org.apache.cassandra.dht.Murmur3Partitioner
+partitioner: org.apache.cassandra.dht.XXHashPartitioner
 
 # Directories where Cassandra should store data on disk. If multiple
 # directories are specified, Cassandra will spread data evenly across 

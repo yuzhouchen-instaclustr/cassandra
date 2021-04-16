@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.CachedHashDecoratedKey;
-import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.dht.LongTokenProducingPartitioner.LongToken;
 import org.apache.cassandra.utils.IFilter.FilterKey;
 
 public class FilterTestHelper
