@@ -31,6 +31,7 @@
  * Add isolated flush timer to CommitLogMetrics and ensure writes correspond to single WaitingOnCommit data points (CASSANDRA-16701)
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
+ * Make SSLContext creation pluggable/extensible (CASSANDRA-16666)
 Merged from 4.0:
  * Prevent CQLSH from failure on Python 3.10 (CASSANDRA-16987)
  * Avoid trying to acquire 0 permits from the rate limiter when taking snapshot (CASSANDRA-16872)
