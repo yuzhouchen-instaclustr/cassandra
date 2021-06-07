@@ -69,6 +69,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Duration;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -101,6 +102,8 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.TableSnapshotDetails;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ClientResourceLimits;
@@ -186,6 +189,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private volatile boolean isShutdown = false;
     private final List<Runnable> preShutdownHooks = new ArrayList<>();
     private final List<Runnable> postShutdownHooks = new ArrayList<>();
+
+    public final SnapshotManager snapshotManager = new SnapshotManager();
 
     public static final StorageService instance = new StorageService();
 
@@ -978,6 +983,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             LoadBroadcaster.instance.startBroadcasting();
             HintsService.instance.startDispatch();
             BatchlogManager.instance.start();
+            snapshotManager.start();
         }
     }
 
@@ -3695,14 +3701,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void takeSnapshot(String tag, Map<String, String> options, String... entities) throws IOException
     {
         boolean skipFlush = Boolean.parseBoolean(options.getOrDefault("skipFlush", "false"));
+        Duration ttl = null;
+        if (options.containsKey("ttl")) {
+            ttl = new Duration(options.get("ttl"));
+            if (ttl.toMinutes() < 1)
+                throw new IllegalArgumentException("ttl for snapshot must be at least 1 minute");
+        }
 
         if (entities != null && entities.length > 0 && entities[0].contains("."))
         {
-            takeMultipleTableSnapshot(tag, skipFlush, entities);
+            takeMultipleTableSnapshot(tag, skipFlush, ttl, entities);
         }
         else
         {
-            takeSnapshot(tag, skipFlush, entities);
+            takeSnapshot(tag, skipFlush, ttl, entities);
         }
     }
 
@@ -3720,7 +3732,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void takeTableSnapshot(String keyspaceName, String tableName, String tag)
             throws IOException
     {
-        takeMultipleTableSnapshot(tag, false, keyspaceName + "." + tableName);
+        takeMultipleTableSnapshot(tag, false, null, keyspaceName + "." + tableName);
     }
 
     public void forceKeyspaceCompactionForTokenRange(String keyspaceName, String startToken, String endToken, String... tableNames) throws IOException, ExecutionException, InterruptedException
@@ -3741,7 +3753,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void takeSnapshot(String tag, String... keyspaceNames) throws IOException
     {
-        takeSnapshot(tag, false, keyspaceNames);
+        takeSnapshot(tag, false, null, keyspaceNames);
     }
 
     /**
@@ -3755,7 +3767,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void takeMultipleTableSnapshot(String tag, String... tableList)
             throws IOException
     {
-        takeMultipleTableSnapshot(tag, false, tableList);
+        takeMultipleTableSnapshot(tag, false, null, tableList);
     }
 
     /**
@@ -3765,7 +3777,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param skipFlush Skip blocking flush of memtable
      * @param keyspaceNames the names of the keyspaces to snapshot; empty means "all."
      */
-    private void takeSnapshot(String tag, boolean skipFlush, String... keyspaceNames) throws IOException
+    private void takeSnapshot(String tag, boolean skipFlush, Duration ttl, String... keyspaceNames) throws IOException
     {
         if (operationMode == Mode.JOINING)
             throw new IOException("Cannot snapshot until bootstrap completes");
@@ -3793,8 +3805,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         RateLimiter snapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
-        for (Keyspace keyspace : keyspaces)
-            keyspace.snapshot(tag, null, skipFlush, snapshotRateLimiter);
+        for (Keyspace keyspace : keyspaces) {
+            keyspace.snapshot(tag, null, skipFlush, ttl, snapshotRateLimiter);
+        }
     }
 
     /**
@@ -3808,7 +3821,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param tableList
      *            list of tables from different keyspace in the form of ks1.cf1 ks2.cf2
      */
-    private void takeMultipleTableSnapshot(String tag, boolean skipFlush, String... tableList)
+    private void takeMultipleTableSnapshot(String tag, boolean skipFlush, Duration ttl, String... tableList)
             throws IOException
     {
         Map<Keyspace, List<String>> keyspaceColumnfamily = new HashMap<Keyspace, List<String>>();
@@ -3859,7 +3872,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (Entry<Keyspace, List<String>> entry : keyspaceColumnfamily.entrySet())
         {
             for (String table : entry.getValue())
-                entry.getKey().snapshot(tag, table, skipFlush, snapshotRateLimiter);
+                entry.getKey().snapshot(tag, table, skipFlush, ttl, snapshotRateLimiter);
         }
 
     }
@@ -3914,7 +3927,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             for (ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
             {
-                for (Map.Entry<String, Directories.SnapshotSizeDetails> snapshotDetail : cfStore.getSnapshotDetails().entrySet())
+                for (Map.Entry<String, TableSnapshotDetails> snapshotDetail : cfStore.getSnapshotDetails().entrySet())
                 {
                     TabularDataSupport data = (TabularDataSupport)snapshotMap.get(snapshotDetail.getKey());
                     if (data == null)
@@ -3923,7 +3936,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         snapshotMap.put(snapshotDetail.getKey(), data);
                     }
 
-                    SnapshotDetailsTabularData.from(snapshotDetail.getKey(), keyspace.getName(), cfStore.getTableName(), snapshotDetail, data);
+                    SnapshotDetailsTabularData.from(snapshotDetail.getValue(), data);
                 }
             }
         }

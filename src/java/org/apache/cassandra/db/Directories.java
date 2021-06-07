@@ -22,6 +22,9 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiPredicate;
+import java.util.stream.Collectors;
+
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
@@ -41,6 +44,8 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.snapshot.SnapshotManifest;
+import org.apache.cassandra.service.snapshot.TableSnapshotDetails;
 import org.apache.cassandra.utils.DirectorySizeCalculator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -937,33 +942,62 @@ public class Directories
         }
     }
 
-    /**
-     *
-     * @return  Return a map of all snapshots to space being used
-     * The pair for a snapshot has size on disk and true size.
-     */
-    public Map<String, SnapshotSizeDetails> getSnapshotDetails()
+    public Map<String, TableSnapshotDetails> getSnapshotDetails()
     {
-        List<File> snapshots = listSnapshots();
-        final Map<String, SnapshotSizeDetails> snapshotSpaceMap = Maps.newHashMapWithExpectedSize(snapshots.size());
-        for (File snapshot : snapshots)
+        Map<String, Set<File>> snapshotDirsByTag = listSnapshotDirsByTag();
+
+        Map<String, TableSnapshotDetails> snapshots = Maps.newHashMapWithExpectedSize(snapshotDirsByTag.size());
+
+        for (Map.Entry<String, Set<File>> entry : snapshotDirsByTag.entrySet())
         {
-            final long sizeOnDisk = FileUtils.folderSize(snapshot);
-            final long trueSize = getTrueAllocatedSizeIn(snapshot);
-            SnapshotSizeDetails spaceUsed = snapshotSpaceMap.get(snapshot.getName());
-            if (spaceUsed == null)
-                spaceUsed =  new SnapshotSizeDetails(sizeOnDisk,trueSize);
-            else
-                spaceUsed = new SnapshotSizeDetails(spaceUsed.sizeOnDiskBytes + sizeOnDisk, spaceUsed.dataSizeBytes + trueSize);
-            snapshotSpaceMap.put(snapshot.getName(), spaceUsed);
+            String tag = entry.getKey();
+            Set<File> snapshotDirs = entry.getValue();
+            SnapshotManifest manifest = maybeLoadManifest(metadata.keyspace, metadata.name, tag, snapshotDirs);
+            snapshots.put(tag, createSnapshotDetails(tag, manifest, snapshotDirs));
         }
-        return snapshotSpaceMap;
+
+        return snapshots;
+    }
+
+    protected TableSnapshotDetails createSnapshotDetails(String tag, SnapshotManifest manifest, Set<File> snapshotDirs) {
+        return new TableSnapshotDetails(metadata.keyspace, metadata.name, tag, manifest, snapshotDirs,
+                                        this::getTrueAllocatedSizeIn);
+    }
+
+    @VisibleForTesting
+    protected static SnapshotManifest maybeLoadManifest(String keyspace, String table, String tag, Set<File> snapshotDirs)
+    {
+        List<File> manifests = snapshotDirs.stream().map(d -> new File(d, "manifest.json"))
+                                           .filter(d -> d.exists()).collect(Collectors.toList());
+
+        if (manifests.isEmpty())
+        {
+            logger.warn("No manifest found for snapshot {} of table {}.{}.", tag, keyspace, table);
+            return null;
+        }
+
+        if (manifests.size() > 1) {
+            logger.warn("Found multiple manifests for snapshot {} of table {}.{}", tag, keyspace, table);
+        }
+
+        for (File manifest : manifests) {
+            try
+            {
+                return SnapshotManifest.deserializeFromJsonFile(manifest);
+            }
+            catch (IOException e)
+            {
+                logger.warn("Cannot read manifest file {} of snapshot {}.", manifests, tag, e);
+            }
+        }
+
+        return null;
     }
 
     public List<String> listEphemeralSnapshots()
     {
         final List<String> ephemeralSnapshots = new LinkedList<>();
-        for (File snapshot : listSnapshots())
+        for (File snapshot : listAllSnapshots())
         {
             if (getEphemeralSnapshotMarkerFile(snapshot).exists())
                 ephemeralSnapshots.add(snapshot.getName());
@@ -971,7 +1005,7 @@ public class Directories
         return ephemeralSnapshots;
     }
 
-    private List<File> listSnapshots()
+    private List<File> listAllSnapshots()
     {
         final List<File> snapshots = new LinkedList<>();
         for (final File dir : dataPaths)
@@ -996,6 +1030,32 @@ public class Directories
         return snapshots;
     }
 
+    @VisibleForTesting
+    protected Map<String, Set<File>> listSnapshotDirsByTag()
+    {
+        Map<String, Set<File>> snapshotDirsByTag = new HashMap<>();
+        for (final File dir : dataPaths)
+        {
+            File snapshotDir = isSecondaryIndexFolder(dir)
+                               ? new File(dir.getParent(), SNAPSHOT_SUBDIR)
+                               : new File(dir, SNAPSHOT_SUBDIR);
+            if (snapshotDir.exists() && snapshotDir.isDirectory())
+            {
+                final File[] snapshotDirs  = snapshotDir.listFiles();
+                if (snapshotDirs != null)
+                {
+                    for (final File snapshot : snapshotDirs)
+                    {
+                        if (snapshot.isDirectory()) {
+                            snapshotDirsByTag.computeIfAbsent(snapshot.getName(), k -> new LinkedHashSet<>()).add(snapshot);
+                        }
+                    }
+                }
+            }
+        }
+        return snapshotDirsByTag;
+    }
+
     public boolean snapshotExists(String snapshotName)
     {
         for (File dir : dataPaths)
@@ -1015,27 +1075,32 @@ public class Directories
         return false;
     }
 
-    public static void clearSnapshot(String snapshotName, List<File> snapshotDirectories, RateLimiter snapshotRateLimiter)
+    public static void clearSnapshot(String snapshotName, List<File> tableDirectories, RateLimiter snapshotRateLimiter)
     {
         // If snapshotName is empty or null, we will delete the entire snapshot directory
         String tag = snapshotName == null ? "" : snapshotName;
-        for (File dir : snapshotDirectories)
+        for (File tableDir : tableDirectories)
         {
-            File snapshotDir = new File(dir, join(SNAPSHOT_SUBDIR, tag));
-            if (snapshotDir.exists())
+            File snapshotDir = new File(tableDir, join(SNAPSHOT_SUBDIR, tag));
+            removeSnapshotDirectory(snapshotRateLimiter, snapshotDir);
+        }
+    }
+
+    public static void removeSnapshotDirectory(RateLimiter snapshotRateLimiter, File snapshotDir)
+    {
+        if (snapshotDir.exists())
+        {
+            logger.trace("Removing snapshot directory {}", snapshotDir);
+            try
             {
-                logger.trace("Removing snapshot directory {}", snapshotDir);
-                try
-                {
-                    FileUtils.deleteRecursiveWithThrottle(snapshotDir, snapshotRateLimiter);
-                }
-                catch (FSWriteError e)
-                {
-                    if (FBUtilities.isWindows)
-                        SnapshotDeletingTask.addFailedSnapshot(snapshotDir);
-                    else
-                        throw e;
-                }
+                FileUtils.deleteRecursiveWithThrottle(snapshotDir, snapshotRateLimiter);
+            }
+            catch (FSWriteError e)
+            {
+                if (FBUtilities.isWindows)
+                    SnapshotDeletingTask.addFailedSnapshot(snapshotDir);
+                else
+                    throw e;
             }
         }
     }
@@ -1081,19 +1146,19 @@ public class Directories
         return totalAllocatedSize;
     }
 
-    public long getTrueAllocatedSizeIn(File input)
+    public long getTrueAllocatedSizeIn(File snapshotDir)
     {
-        if (!input.isDirectory())
+        if (!snapshotDir.isDirectory())
             return 0;
 
-        SSTableSizeSummer visitor = new SSTableSizeSummer(input, sstableLister(Directories.OnTxnErr.THROW).listFiles());
+        SSTableSizeSummer visitor = new SSTableSizeSummer(snapshotDir, sstableLister(OnTxnErr.THROW).listFiles());
         try
         {
-            Files.walkFileTree(input.toPath(), visitor);
+            Files.walkFileTree(snapshotDir.toPath(), visitor);
         }
         catch (IOException e)
         {
-            logger.error("Could not calculate the size of {}. {}", input, e.getMessage());
+            logger.error("Could not calculate the size of {}. {}", snapshotDir, e.getMessage());
         }
 
         return visitor.getAllocatedSize();
@@ -1175,31 +1240,4 @@ public class Directories
         }
     }
 
-    public static class SnapshotSizeDetails
-    {
-        final long sizeOnDiskBytes;
-        final long dataSizeBytes;
-
-        private SnapshotSizeDetails(long sizeOnDiskBytes, long dataSizeBytes)
-        {
-            this.sizeOnDiskBytes = sizeOnDiskBytes;
-            this.dataSizeBytes = dataSizeBytes;
-        }
-
-        @Override
-        public final int hashCode()
-        {
-            int hashCode = (int) sizeOnDiskBytes ^ (int) (sizeOnDiskBytes >>> 32);
-            return 31 * (hashCode ^ (int) ((int) dataSizeBytes ^ (dataSizeBytes >>> 32)));
-        }
-
-        @Override
-        public final boolean equals(Object o)
-        {
-            if(!(o instanceof SnapshotSizeDetails))
-                return false;
-            SnapshotSizeDetails that = (SnapshotSizeDetails)o;
-            return sizeOnDiskBytes == that.sizeOnDiskBytes && dataSizeBytes == that.dataSizeBytes;
-        }
-    }
 }

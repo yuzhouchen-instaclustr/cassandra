@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -41,6 +42,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Duration;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -64,6 +66,7 @@ import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.service.snapshot.TableSnapshotDetails;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -246,7 +249,7 @@ public class Keyspace
      * @param rateLimiter Rate limiter for hardlinks-per-second
      * @throws IOException if the column family doesn't exist
      */
-    public void snapshot(String snapshotName, String columnFamilyName, boolean skipFlush, RateLimiter rateLimiter) throws IOException
+    public void snapshot(String snapshotName, String columnFamilyName, boolean skipFlush, Duration ttl, RateLimiter rateLimiter) throws IOException
     {
         assert snapshotName != null;
         boolean tookSnapShot = false;
@@ -255,7 +258,7 @@ public class Keyspace
             if (columnFamilyName == null || cfStore.name.equals(columnFamilyName))
             {
                 tookSnapShot = true;
-                cfStore.snapshot(snapshotName, skipFlush, rateLimiter);
+                cfStore.snapshot(snapshotName, skipFlush, ttl, rateLimiter);
             }
         }
 
@@ -273,7 +276,7 @@ public class Keyspace
      */
     public void snapshot(String snapshotName, String columnFamilyName) throws IOException
     {
-        snapshot(snapshotName, columnFamilyName, false, null);
+        snapshot(snapshotName, columnFamilyName, false, null, null);
     }
 
     /**
@@ -322,8 +325,8 @@ public class Keyspace
     {
         RateLimiter clearSnapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
-        List<File> snapshotDirs = Directories.getKSChildDirectories(keyspace);
-        Directories.clearSnapshot(snapshotName, snapshotDirs, clearSnapshotRateLimiter);
+        List<File> tableDirectories = Directories.getKSChildDirectories(keyspace);
+        Directories.clearSnapshot(snapshotName, tableDirectories, clearSnapshotRateLimiter);
     }
 
     /**
@@ -334,6 +337,18 @@ public class Keyspace
         List<SSTableReader> list = new ArrayList<>(columnFamilyStores.size());
         for (ColumnFamilyStore cfStore : columnFamilyStores.values())
             Iterables.addAll(list, cfStore.getSSTables(sstableSet));
+        return list;
+    }
+
+    public List<TableSnapshotDetails> getSnapshotDetails() {
+        List<TableSnapshotDetails> list = new ArrayList<>();
+        for (ColumnFamilyStore cfStore : getColumnFamilyStores())
+        {
+            for (Map.Entry<String, TableSnapshotDetails> details : cfStore.getSnapshotDetails().entrySet()) {
+                list.add(details.getValue());
+            }
+        }
+
         return list;
     }
 

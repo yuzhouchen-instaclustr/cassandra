@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import javax.management.*;
 import javax.management.openmbean.*;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.*;
@@ -41,6 +42,7 @@ import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Duration;
 import org.apache.cassandra.cache.*;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.*;
@@ -83,13 +85,13 @@ import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.snapshot.SnapshotManifest;
+import org.apache.cassandra.service.snapshot.TableSnapshotDetails;
 import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
@@ -1826,19 +1828,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void snapshotWithoutFlush(String snapshotName)
     {
-        snapshotWithoutFlush(snapshotName, null, false, null);
+        snapshotWithoutFlush(snapshotName, null, false, null, null);
     }
 
     /**
      * @param ephemeral If this flag is set to true, the snapshot will be cleaned during next startup
      */
-    public Set<SSTableReader> snapshotWithoutFlush(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, RateLimiter rateLimiter)
+    public Set<SSTableReader> snapshotWithoutFlush(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, Duration ttl, RateLimiter rateLimiter)
     {
         if (rateLimiter == null)
             rateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
-        Set<SSTableReader> snapshottedSSTables = new HashSet<>();
-        final JSONArray filesJSONArr = new JSONArray();
+        Set<File> snapshotDirs = new LinkedHashSet<>();
+        Set<SSTableReader> snapshottedSSTables = new LinkedHashSet<>();
         for (ColumnFamilyStore cfs : concatWithIndexes())
         {
             try (RefViewFragment currentView = cfs.selectAndReference(View.select(SSTableSet.CANONICAL, (x) -> predicate == null || predicate.apply(x))))
@@ -1846,9 +1848,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 for (SSTableReader ssTable : currentView.sstables)
                 {
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
+                    snapshotDirs.add(snapshotDirectory);
                     rateLimiter.acquire(SSTableReader.componentsFor(ssTable.descriptor).size());
                     ssTable.createLinks(snapshotDirectory.getPath()); // hard links
-                    filesJSONArr.add(ssTable.descriptor.relativeFilenameFor(Component.DATA));
 
                     if (logger.isTraceEnabled())
                         logger.trace("Snapshot for {} keyspace data file {} created in {}", keyspace, ssTable.getFilename(), snapshotDirectory);
@@ -1857,7 +1859,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         }
 
-        writeSnapshotManifest(filesJSONArr, snapshotName);
+        SnapshotManifest manifest = writeSnapshotManifest(snapshottedSSTables, ttl, snapshotName);
+        StorageService.instance.snapshotManager.addSnapshot(directories.createSnapshotDetails(snapshotName, manifest, snapshotDirs));
+
         if (!SchemaConstants.isLocalSystemKeyspace(metadata.keyspace) && !SchemaConstants.isReplicatedSystemKeyspace(metadata.keyspace))
             writeSnapshotSchema(snapshotName);
 
@@ -1866,7 +1870,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return snapshottedSSTables;
     }
 
-    private void writeSnapshotManifest(final JSONArray filesJSONArr, final String snapshotName)
+    private SnapshotManifest writeSnapshotManifest(Set<SSTableReader> sstables, Duration ttl, final String snapshotName)
     {
         final File manifestFile = getDirectories().getSnapshotManifestFile(snapshotName);
 
@@ -1875,17 +1879,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (!manifestFile.getParentFile().exists())
                 manifestFile.getParentFile().mkdirs();
 
-            try (PrintStream out = new PrintStream(manifestFile))
-            {
-                final JSONObject manifestJSON = new JSONObject();
-                manifestJSON.put("files", filesJSONArr);
-                out.println(manifestJSON.toJSONString());
-            }
+            SnapshotManifest manifest = new SnapshotManifest(toDataFileNameList(sstables), ttl);
+            manifest.serializeToJsonFile(manifestFile);
+            return manifest;
         }
         catch (IOException e)
         {
             throw new FSWriteError(e, manifestFile);
         }
+    }
+
+    private List<String> toDataFileNameList(Collection<SSTableReader> sstables)
+    {
+        return sstables.stream().map(s -> s.descriptor.relativeFilenameFor(Component.DATA)).collect(Collectors.toList());
     }
 
     private void writeSnapshotSchema(final String snapshotName)
@@ -1990,7 +1996,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public Set<SSTableReader> snapshot(String snapshotName)
     {
-        return snapshot(snapshotName, false, null);
+        return snapshot(snapshotName, false, null, null);
     }
 
     /**
@@ -2000,9 +2006,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param skipFlush Skip blocking flush of memtable
      * @param rateLimiter Rate limiter for hardlinks-per-second
      */
-    public Set<SSTableReader> snapshot(String snapshotName, boolean skipFlush, RateLimiter rateLimiter)
+    public Set<SSTableReader> snapshot(String snapshotName, boolean skipFlush, Duration ttl, RateLimiter rateLimiter)
     {
-        return snapshot(snapshotName, null, false, skipFlush, rateLimiter);
+        return snapshot(snapshotName, null, false, skipFlush, ttl, rateLimiter);
     }
 
 
@@ -2012,7 +2018,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public Set<SSTableReader> snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipFlush)
     {
-        return snapshot(snapshotName, predicate, ephemeral, skipFlush, null);
+        return snapshot(snapshotName, predicate, ephemeral, skipFlush, null, null);
     }
 
     /**
@@ -2020,13 +2026,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param skipFlush Skip blocking flush of memtable
      * @param rateLimiter Rate limiter for hardlinks-per-second
      */
-    public Set<SSTableReader> snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipFlush, RateLimiter rateLimiter)
+    public Set<SSTableReader> snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipFlush, Duration ttl, RateLimiter rateLimiter)
     {
         if (!skipFlush)
         {
             forceBlockingFlush();
         }
-        return snapshotWithoutFlush(snapshotName, predicate, ephemeral, rateLimiter);
+        return snapshotWithoutFlush(snapshotName, predicate, ephemeral, ttl, rateLimiter);
     }
 
     public boolean snapshotExists(String snapshotName)
@@ -2057,7 +2063,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return  Return a map of all snapshots to space being used
      * The pair for a snapshot has true size and size on disk.
      */
-    public Map<String, Directories.SnapshotSizeDetails> getSnapshotDetails()
+    public Map<String, TableSnapshotDetails> getSnapshotDetails()
     {
         return getDirectories().getSnapshotDetails();
     }
