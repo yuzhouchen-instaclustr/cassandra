@@ -58,11 +58,6 @@ public class HintsTable extends AbstractDiagnosticsVirtualTable
     {
         SimpleDataSet dataSet = new SimpleDataSet(metadata);
 
-        if (!isEnabled(HintsServiceEvent.class))
-        {
-            return dataSet;
-        }
-
         for (Map.Entry<Long, Map<String, Serializable>> event : getEvents(HintsServiceEvent.class).entrySet())
         {
             Map<String, Serializable> value = event.getValue();

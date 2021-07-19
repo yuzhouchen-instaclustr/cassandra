@@ -42,14 +42,8 @@ public final class VirtualKeyspaceRegistry
     {
         for (VirtualKeyspace keyspace : keyspaces)
         {
-            register(keyspace);
+            keyspace.tables().forEach(t -> virtualTables.put(t.metadata().id, t));
         }
-    }
-
-    public void register(VirtualKeyspace keyspace)
-    {
-        virtualKeyspaces.put(keyspace.name(), keyspace);
-        keyspace.tables().forEach(t -> virtualTables.put(t.metadata().id, t));
     }
 
     @Nullable

@@ -57,11 +57,6 @@ public class GossiperTable extends AbstractDiagnosticsVirtualTable
     {
         SimpleDataSet dataSet = new SimpleDataSet(metadata);
 
-        if (!isEnabled(GossiperEvent.class))
-        {
-            return dataSet;
-        }
-
         for (Map.Entry<Long, Map<String, Serializable>> event : getEvents(GossiperEvent.class).entrySet())
         {
             Map<String, Serializable> value = event.getValue();

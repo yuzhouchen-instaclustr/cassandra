@@ -50,11 +50,6 @@ public class BootstrapTable extends AbstractDiagnosticsVirtualTable
     {
         SimpleDataSet dataSet = new SimpleDataSet(metadata);
 
-        if (!isEnabled(BootstrapEvent.class))
-        {
-            return dataSet;
-        }
-
         for (Map.Entry<Long, Map<String, Serializable>> event : getEvents(BootstrapEvent.class).entrySet())
         {
             Map<String, Serializable> value = event.getValue();

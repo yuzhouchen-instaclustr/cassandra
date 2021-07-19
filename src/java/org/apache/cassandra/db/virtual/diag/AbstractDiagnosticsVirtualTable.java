@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.virtual.diag;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.Map;
 
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -65,6 +66,11 @@ public abstract class AbstractDiagnosticsVirtualTable extends AbstractVirtualTab
 
     Map<Long, Map<String, Serializable>> getEvents(Class<? extends DiagnosticEvent> event)
     {
+        if (!isEnabled(event))
+        {
+            return Collections.emptyMap();
+        }
+
         return DiagnosticEventPersistence.instance().getEvents(event.getName(),
                                                                Long.MAX_VALUE,
                                                                Integer.MAX_VALUE,
