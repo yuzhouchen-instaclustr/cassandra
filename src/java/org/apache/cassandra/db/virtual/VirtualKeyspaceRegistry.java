@@ -38,6 +38,14 @@ public final class VirtualKeyspaceRegistry
     {
     }
 
+    public void register(VirtualKeyspace... keyspaces)
+    {
+        for (VirtualKeyspace keyspace : keyspaces)
+        {
+            register(keyspace);
+        }
+    }
+
     public void register(VirtualKeyspace keyspace)
     {
         virtualKeyspaces.put(keyspace.name(), keyspace);

@@ -33,7 +33,7 @@ import org.apache.cassandra.locator.TokenMetadata;
 /**
  * DiagnosticEvent implementation for bootstrap related activities.
  */
-final class BootstrapEvent extends DiagnosticEvent
+public final class BootstrapEvent extends DiagnosticEvent
 {
 
     private final BootstrapEventType type;

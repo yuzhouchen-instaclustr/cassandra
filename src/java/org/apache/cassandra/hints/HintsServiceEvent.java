@@ -26,8 +26,13 @@ import org.apache.cassandra.diag.DiagnosticEvent;
 /**
  * DiagnosticEvent implementation for HintService.
  */
-final class HintsServiceEvent extends DiagnosticEvent
+public final class HintsServiceEvent extends DiagnosticEvent
 {
+    public static final String IS_DISPATCH_PAUSED_FIELD = "isDispatchPaused";
+    public static final String IS_SHUTDOWN_FIELD = "isShutdown";
+    public static final String DISPATCH_EXECUTOR_IS_PAUSED_FIELD = "dispatchExecutorIsPaused";
+    public static final String DISPATCH_EXECUTOR_HAS_SCHEDULED_DISPATCHES_FIELD = "dispatchExecutorHasScheduledDispatches";
+
     enum HintsServiceEventType
     {
         DISPATCHING_STARTED,
@@ -62,10 +67,10 @@ final class HintsServiceEvent extends DiagnosticEvent
     {
         // be extra defensive against nulls and bugs
         HashMap<String, Serializable> ret = new HashMap<>();
-        ret.put("isDispatchPaused", isDispatchPaused);
-        ret.put("isShutdown", isShutdown);
-        ret.put("dispatchExecutorIsPaused", dispatchExecutorIsPaused);
-        ret.put("dispatchExecutorHasScheduledDispatches", dispatchExecutorHasScheduledDispatches);
+        ret.put(IS_DISPATCH_PAUSED_FIELD, isDispatchPaused);
+        ret.put(IS_SHUTDOWN_FIELD, isShutdown);
+        ret.put(DISPATCH_EXECUTOR_IS_PAUSED_FIELD, dispatchExecutorIsPaused);
+        ret.put(DISPATCH_EXECUTOR_HAS_SCHEDULED_DISPATCHES_FIELD, dispatchExecutorHasScheduledDispatches);
         return ret;
     }
 }

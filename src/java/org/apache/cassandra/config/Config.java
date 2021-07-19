@@ -474,6 +474,8 @@ public class Config
 
     public volatile boolean diagnostic_events_enabled = false;
 
+    public boolean diagnostic_events_virtual_tables_enabled = false;
+
     /**
      * flags for enabling tracking repaired state of data during reads
      * separate flags for range & single partition reads as single partition reads are only tracked

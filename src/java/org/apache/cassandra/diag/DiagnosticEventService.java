@@ -18,17 +18,13 @@
 package org.apache.cassandra.diag;
 
 import java.io.Serializable;
-import java.lang.management.ManagementFactory;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.Consumer;
-
 import javax.annotation.Nullable;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
@@ -36,7 +32,6 @@ import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Iterables;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -296,6 +291,14 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
     public SortedMap<Long, Map<String, Serializable>> readEvents(String eventClazz, Long lastKey, int limit)
     {
         return DiagnosticEventPersistence.instance().getEvents(eventClazz, lastKey, limit, false);
+    }
+
+    public void enableEventsPersistence(Class<?>... eventClases)
+    {
+        for (Class<?> eventClass : eventClases)
+        {
+            enableEventPersistence(eventClass.getName());
+        }
     }
 
     public void enableEventPersistence(String eventClazz)

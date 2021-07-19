@@ -909,6 +909,16 @@ public class TableMetadata implements SchemaElement
             return addRegularColumn(ColumnIdentifier.getInterned(name, false), type);
         }
 
+        public Builder addRegularColumns(Map<String, AbstractType> columns)
+        {
+            for (Map.Entry<String, AbstractType> column : columns.entrySet())
+            {
+                addRegularColumn(column.getKey(), column.getValue());
+            }
+
+            return this;
+        }
+
         public Builder addRegularColumn(ColumnIdentifier name, AbstractType type)
         {
             return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR));

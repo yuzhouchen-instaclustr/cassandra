@@ -31,7 +31,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
-
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
@@ -50,7 +49,6 @@ import com.codahale.metrics.jvm.BufferPoolMetricSet;
 import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
-
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -65,9 +63,14 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
+import org.apache.cassandra.db.virtual.diag.SystemDiagnosticsKeyspace;
+import org.apache.cassandra.dht.BootstrapEvent;
+import org.apache.cassandra.diag.DiagnosticEventService;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.GossiperEvent;
+import org.apache.cassandra.hints.HintsServiceEvent;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.SSTableHeaderFix;
@@ -248,6 +251,14 @@ public class CassandraDaemon
             WindowsFailedSnapshotTracker.deleteOldSnapshots();
 
         maybeInitJmx();
+
+        if (DatabaseDescriptor.diagnosticEventsEnabled() && DatabaseDescriptor.virtualTablesDiagnosticEventsEnabled())
+        {
+            // eventually enable all events here
+            DiagnosticEventService.instance().enableEventsPersistence(GossiperEvent.class,
+                                                                      HintsServiceEvent.class,
+                                                                      BootstrapEvent.class);
+        }
 
         Mx4jTool.maybeLoad();
 
@@ -561,8 +572,12 @@ public class CassandraDaemon
 
     public void setupVirtualKeyspaces()
     {
-        VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
-        VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
+        VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance, SystemViewsKeyspace.instance);
+
+        if (DatabaseDescriptor.diagnosticEventsEnabled() && DatabaseDescriptor.virtualTablesDiagnosticEventsEnabled())
+        {
+            VirtualKeyspaceRegistry.instance.register(SystemDiagnosticsKeyspace.instance);
+        }
     }
 
     public synchronized void initializeClientTransports()
