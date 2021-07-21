@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.audit;
 
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 import com.google.common.base.Strings;
 import org.apache.commons.lang3.StringUtils;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.binlog.BinLogOptions;
@@ -44,11 +46,15 @@ public class AuditLogOptions extends BinLogOptions
     public String included_users = StringUtils.EMPTY;
     public String excluded_users = StringUtils.EMPTY;
 
-    /**
-     * AuditLogs directory can be configured using `cassandra.logdir.audit` or default is set to `cassandra.logdir` + /audit/
-     */
-    public String audit_logs_dir = Paths.get(System.getProperty("cassandra.logdir.audit",
-                                                                System.getProperty("cassandra.logdir", ".") + "/audit/")).normalize().toString();
+    public String audit_logs_dir;
+
+    public AuditLogOptions()
+    {
+        String auditLogDir = CassandraRelevantProperties.LOG_DIR_AUDIT.getString();
+        String logDir = CassandraRelevantProperties.LOG_DIR.getString() + "/audit";
+        Path path = auditLogDir == null ? Paths.get(logDir) : Paths.get(auditLogDir);
+        audit_logs_dir = path.normalize().toString();
+    }
 
     public static AuditLogOptions validate(final AuditLogOptions options) throws ConfigurationException
     {
