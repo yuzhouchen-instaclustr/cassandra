@@ -55,6 +55,7 @@ public class DatabaseDescriptorRefTest
 {
     static final String[] validClasses = {
     "org.apache.cassandra.config.CassandraRelevantProperties",
+    "org.apache.cassandra.config.CassandraRelevantProperties$PropertyConverter",
     "org.apache.cassandra.audit.AuditLogOptions",
     "org.apache.cassandra.audit.BinAuditLogger",
     "org.apache.cassandra.audit.BinLogAuditLogger",
