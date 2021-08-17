@@ -4823,6 +4823,17 @@ public class CompactStorageTest extends CQLTester
      */
 
     /**
+     * Test for CASSANDRA-14564
+     */
+    @Test
+    public void testAlterByAddingColumnToCompactTableShouldFail() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+        assertInvalidMessage("Cannot add new column to a COMPACT STORAGE table",
+                             "ALTER TABLE %s ADD column1 text");
+    }
+
+    /**
      * Test for CASSANDRA-13917
      */
     @Test
