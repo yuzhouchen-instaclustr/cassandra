@@ -3703,15 +3703,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void takeSnapshot(String tag, Map<String, String> options, String... entities) throws IOException
     {
-        boolean skipFlush = Boolean.parseBoolean(options.getOrDefault("skipFlush", "false"));
-        Duration ttl = null;
-        if (options.containsKey("ttl"))
+        Duration ttl = Optional.ofNullable(options.get("ttl")).map(Duration::new).orElseGet(null);
+
+        if (ttl != null)
         {
-            ttl = new Duration(options.get("ttl"));
             int minAllowedTtlSecs = CassandraRelevantProperties.SNAPSHOT_MIN_ALLOWED_TTL_SECONDS.getInt();
             if (ttl.toSeconds() < minAllowedTtlSecs)
                 throw new IllegalArgumentException(String.format("ttl for snapshot must be at least %d seconds", minAllowedTtlSecs));
         }
+
+        boolean skipFlush = Boolean.parseBoolean(options.getOrDefault("skipFlush", "false"));
 
         if (entities != null && entities.length > 0 && entities[0].contains("."))
         {
