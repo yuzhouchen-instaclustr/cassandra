@@ -40,6 +40,11 @@ public class ListSnapshots extends NodeToolCmd
     description = "Skip snapshots with TTL")
     private boolean noTTL = false;
 
+    @Option(title = "ephemeral",
+    name = { "-e", "--ephemeral" },
+    description = "Include ephemeral snapshots")
+    private boolean ephemeral = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -50,6 +55,7 @@ public class ListSnapshots extends NodeToolCmd
 
             Map<String, String> options = new HashMap<>();
             options.put("no_ttl", Boolean.toString(noTTL));
+            options.put("ephemeral", Boolean.toString(ephemeral));
 
             final Map<String, TabularData> snapshotDetails = probe.getSnapshotDetails(options);
             if (snapshotDetails.isEmpty())

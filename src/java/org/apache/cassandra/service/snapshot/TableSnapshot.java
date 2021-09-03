@@ -33,6 +33,7 @@ public class TableSnapshot
     private final String keyspace;
     private final String table;
     private final String tag;
+    private final boolean ephemeral;
 
     private final Instant createdAt;
     private final Instant expiresAt;
@@ -41,7 +42,7 @@ public class TableSnapshot
     private final Function<File, Long> trueDiskSizeComputer;
 
     public TableSnapshot(String keyspace, String table, String tag, Instant createdAt,
-                         Instant expiresAt, Set<File> snapshotDirs,
+                         Instant expiresAt, Set<File> snapshotDirs, boolean ephemeral,
                          Function<File, Long> trueDiskSizeComputer)
     {
         this.keyspace = keyspace;
@@ -50,6 +51,7 @@ public class TableSnapshot
         this.createdAt = createdAt;
         this.expiresAt = expiresAt;
         this.snapshotDirs = snapshotDirs;
+        this.ephemeral = ephemeral;
         this.trueDiskSizeComputer = trueDiskSizeComputer;
     }
 
@@ -101,6 +103,11 @@ public class TableSnapshot
         return snapshotDirs.stream().anyMatch(File::exists);
     }
 
+    public boolean isEphemeral()
+    {
+        return ephemeral;
+    }
+
     public boolean isExpiring()
     {
         return expiresAt != null;
@@ -131,6 +138,7 @@ public class TableSnapshot
                ", createdAt=" + createdAt +
                ", expiresAt=" + expiresAt +
                ", snapshotDirs=" + snapshotDirs +
+               ", ephemeral=" + ephemeral +
                '}';
     }
 
@@ -142,13 +150,14 @@ public class TableSnapshot
         TableSnapshot that = (TableSnapshot) o;
         return Objects.equals(keyspace, that.keyspace) && Objects.equals(table, that.table)
                && Objects.equals(tag, that.tag) && Objects.equals(createdAt, that.createdAt)
-               && Objects.equals(expiresAt, that.expiresAt) && Objects.equals(snapshotDirs, that.snapshotDirs);
+               && Objects.equals(expiresAt, that.expiresAt) && Objects.equals(snapshotDirs, that.snapshotDirs)
+               && Objects.equals(ephemeral, that.ephemeral);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(keyspace, table, tag, createdAt, expiresAt, snapshotDirs);
+        return Objects.hash(keyspace, table, tag, createdAt, expiresAt, snapshotDirs, ephemeral);
     }
 
     public static Map<String, TableSnapshot> filter(Map<String, TableSnapshot> snapshots, Map<String, String> options)
@@ -157,10 +166,12 @@ public class TableSnapshot
             return snapshots;
 
         boolean skipExpiring = Boolean.parseBoolean(options.getOrDefault("no_ttl", "false"));
+        boolean ephemeral = Boolean.parseBoolean(options.getOrDefault("ephemeral", "false"));
 
         return snapshots.entrySet()
                         .stream()
                         .filter(entry -> !skipExpiring || !entry.getValue().isExpiring())
+                        .filter(entry -> !ephemeral || entry.getValue().isEphemeral())
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 }

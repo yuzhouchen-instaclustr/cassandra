@@ -564,12 +564,6 @@ public class Directories
         return new File(snapshotDir, "schema.cql");
     }
 
-    public File getNewEphemeralSnapshotMarkerFile(String snapshotName)
-    {
-        File snapshotDir = new File(getWriteableLocationAsFile(1L), join(SNAPSHOT_SUBDIR, snapshotName));
-        return getEphemeralSnapshotMarkerFile(snapshotDir);
-    }
-
     private static File getEphemeralSnapshotMarkerFile(File snapshotDirectory)
     {
         return new File(snapshotDirectory, "ephemeral.snapshot");
@@ -968,8 +962,8 @@ public class Directories
     protected TableSnapshot buildSnapshot(String tag, SnapshotManifest manifest, Set<File> snapshotDirs) {
         Instant createdAt = manifest == null ? null : manifest.createdAt;
         Instant expiresAt = manifest == null ? null : manifest.expiresAt;
-        return new TableSnapshot(metadata.keyspace, metadata.name, tag, createdAt, expiresAt, snapshotDirs,
-                                 this::getTrueAllocatedSizeIn);
+        return new TableSnapshot(metadata.keyspace, metadata.name, tag, createdAt, expiresAt,
+                                 snapshotDirs, manifest != null && manifest.ephemeral, this::getTrueAllocatedSizeIn);
     }
 
     @VisibleForTesting

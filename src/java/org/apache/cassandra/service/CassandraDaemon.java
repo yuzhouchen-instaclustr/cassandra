@@ -81,6 +81,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
@@ -366,6 +367,9 @@ public class CassandraDaemon
 
         // Re-populate token metadata after commit log recover (new peers might be loaded onto system keyspace #10293)
         StorageService.instance.populateTokenMetadata();
+
+        StorageService.instance.snapshotManager.loadSnapshots();
+        StorageService.instance.snapshotManager.clearEphemeralSnapshots();
 
         SystemKeyspace.finishStartup();
 

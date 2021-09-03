@@ -74,6 +74,7 @@ public class TableSnapshotTest
         null,
         null,
         folders,
+        false,
         (File file) -> 0L
         );
 
@@ -96,6 +97,7 @@ public class TableSnapshotTest
         null,
         null,
         folders,
+        false,
         (File file) -> 0L
         );
 
@@ -109,6 +111,7 @@ public class TableSnapshotTest
         Instant.now(),
         null,
         folders,
+        false,
         (File file) -> 0L
         );
 
@@ -122,6 +125,7 @@ public class TableSnapshotTest
         Instant.now(),
         Instant.now().plusSeconds(1000),
         folders,
+        false,
         (File file) -> 0L
         );
 
@@ -135,6 +139,7 @@ public class TableSnapshotTest
         Instant.now(),
         Instant.now().minusSeconds(1000),
         folders,
+        false,
         (File file) -> 0L
         );
 
@@ -164,9 +169,8 @@ public class TableSnapshotTest
         null,
         null,
         folders,
-        (File file) -> {
-            return 0L;
-        }
+        false,
+        (File file) -> 0L
         );
 
         Long res = 0L;
@@ -193,6 +197,7 @@ public class TableSnapshotTest
         null,
         null,
         folders,
+        false,
         File::length
         );
 
@@ -222,6 +227,7 @@ public class TableSnapshotTest
         createdAt,
         null,
         folders,
+        false,
         (File file) -> 0L
         );
         assertThat(withCreatedAt.getCreatedAt()).isEqualTo(createdAt);
@@ -234,6 +240,7 @@ public class TableSnapshotTest
         null,
         null,
         folders,
+        false,
         (File file) -> 0L
         );
         assertThat(withoutCreatedAt.getCreatedAt()).isEqualTo(Instant.ofEpochMilli(folders.stream().mapToLong(f -> f.lastModified()).min().getAsLong()));

@@ -30,6 +30,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.config.Duration;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import org.apache.cassandra.io.FSWriteError;
 
 // Only serialize fields
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY,
@@ -52,19 +53,29 @@ public class SnapshotManifest
     @JsonProperty("expires_at")
     public final Instant expiresAt;
 
+    @JsonProperty("ephemeral")
+    public final boolean ephemeral;
+
     /** needed for jackson serialization */
     @SuppressWarnings("unused")
     private SnapshotManifest() {
         this.files = null;
         this.createdAt = null;
         this.expiresAt = null;
+        this.ephemeral = false;
     }
 
-    public SnapshotManifest(List<String> files, Duration ttl)
+    public SnapshotManifest(List<String> files, Duration ttl, boolean ephemeral)
     {
         this.files = files;
         this.createdAt = Instant.now();
         this.expiresAt = ttl == null ? null : createdAt.plusMillis(ttl.toMilliseconds());
+        this.ephemeral = ephemeral;
+    }
+
+    public SnapshotManifest(List<String> files, Duration ttl)
+    {
+        this(files, ttl, false);
     }
 
     public List<String> getFiles()
@@ -82,9 +93,32 @@ public class SnapshotManifest
         return expiresAt;
     }
 
+    public boolean isEphemeral()
+    {
+        return ephemeral;
+    }
+
     public void serializeToJsonFile(File outputFile) throws IOException
     {
         mapper.writeValue(outputFile, this);
+    }
+
+    public void write(File manifestFile)
+    {
+        try
+        {
+            if (!manifestFile.getParentFile().exists())
+                manifestFile.getParentFile().mkdirs();
+
+            if (manifestFile.exists())
+                throw new IllegalStateException(String.format("file to write manifest to (%s) already exists!", manifestFile));
+
+            serializeToJsonFile(manifestFile);
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, manifestFile);
+        }
     }
 
     public static SnapshotManifest deserializeFromJsonFile(File file) throws IOException
@@ -98,12 +132,15 @@ public class SnapshotManifest
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotManifest manifest = (SnapshotManifest) o;
-        return Objects.equals(files, manifest.files) && Objects.equals(createdAt, manifest.createdAt) && Objects.equals(expiresAt, manifest.expiresAt);
+        return Objects.equals(files, manifest.files)
+               && Objects.equals(createdAt, manifest.createdAt)
+               && Objects.equals(expiresAt, manifest.expiresAt)
+               && Objects.equals(ephemeral, manifest.ephemeral);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(files, createdAt, expiresAt);
+        return Objects.hash(files, createdAt, expiresAt, ephemeral);
     }
 }

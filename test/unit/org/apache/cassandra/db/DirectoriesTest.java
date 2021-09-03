@@ -159,7 +159,7 @@ public class DirectoriesTest
         {
             Instant createdAt = manifest == null ? null : manifest.createdAt;
             Instant expiresAt = manifest == null ? null : manifest.expiresAt;
-            return new TableSnapshot(table.keyspace, table.name, tag, createdAt, expiresAt, Collections.singleton(snapshotDir), null);
+            return new TableSnapshot(table.keyspace, table.name, tag, createdAt, expiresAt, Collections.singleton(snapshotDir), false, null);
         }
     }
 

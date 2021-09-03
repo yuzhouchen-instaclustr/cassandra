@@ -190,7 +190,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private final List<Runnable> preShutdownHooks = new ArrayList<>();
     private final List<Runnable> postShutdownHooks = new ArrayList<>();
 
-    private final SnapshotManager snapshotManager = new SnapshotManager();
+    public final SnapshotManager snapshotManager = SnapshotManager.createAllSnapshotsManager();
 
     public static final StorageService instance = new StorageService();
 
@@ -986,7 +986,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             LoadBroadcaster.instance.startBroadcasting();
             HintsService.instance.startDispatch();
             BatchlogManager.instance.start();
-            snapshotManager.start();
+            snapshotManager.resumeSnapshotCleanup();
         }
     }
 

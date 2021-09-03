@@ -34,6 +34,7 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 
@@ -248,7 +249,7 @@ public class ColumnFamilyStoreTest
         assertTrue(snapshotDetails.containsKey("ephemeralSnapshot"));
         assertTrue(snapshotDetails.containsKey("nonEphemeralSnapshot"));
 
-        ColumnFamilyStore.clearEphemeralSnapshots(cfs.getDirectories());
+        StorageService.instance.snapshotManager.clearEphemeralSnapshots();
 
         snapshotDetails = cfs.listSnapshots();
         assertEquals(1, snapshotDetails.size());

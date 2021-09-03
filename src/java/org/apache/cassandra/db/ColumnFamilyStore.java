@@ -636,6 +636,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Set<File> cleanedDirectories = new HashSet<>();
 
         // clear ephemeral snapshots that were not properly cleared last session (CASSANDRA-7357)
+        // TODO - see CASSANDRA-16991, this should be gone once we remove ephemerals solely by means for SnapshotManager
         clearEphemeralSnapshots(directories);
 
         directories.removeTemporaryDirectories();
@@ -1872,9 +1873,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                          .collect(Collectors.toCollection(HashSet::new));
 
         // Create and write snapshot manifest
-        SnapshotManifest manifest = new SnapshotManifest(mapToDataFilenames(sstables), ttl);
+        SnapshotManifest manifest = new SnapshotManifest(mapToDataFilenames(sstables), ttl, ephemeral);
         File manifestFile = getDirectories().getSnapshotManifestFile(tag);
-        writeSnapshotManifest(manifest, manifestFile);
+        manifest.write(manifestFile);
         snapshotDirs.add(manifestFile.getParentFile().getAbsoluteFile()); // manifest may create empty snapshot dir
 
         // Write snapshot schema
@@ -1885,35 +1886,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             snapshotDirs.add(schemaFile.getParentFile().getAbsoluteFile()); // schema may create empty snapshot dir
         }
 
-        // Maybe create ephemeral marker
-        if (ephemeral)
-        {
-            File ephemeralSnapshotMarker = getDirectories().getNewEphemeralSnapshotMarkerFile(tag);
-            createEphemeralSnapshotMarkerFile(tag, ephemeralSnapshotMarker);
-            snapshotDirs.add(ephemeralSnapshotMarker.getParentFile().getAbsoluteFile()); // marker may create empty snapshot dir
-        }
-
         TableSnapshot snapshot = new TableSnapshot(metadata.keyspace, metadata.name, tag, manifest.createdAt,
-                                                   manifest.expiresAt, snapshotDirs, directories::getTrueAllocatedSizeIn);
+                                                   manifest.expiresAt, snapshotDirs, manifest.ephemeral,
+                                                   directories::getTrueAllocatedSizeIn);
 
         StorageService.instance.addSnapshot(snapshot);
         return snapshot;
-    }
-
-    private SnapshotManifest writeSnapshotManifest(SnapshotManifest manifest, File manifestFile)
-    {
-        try
-        {
-            if (!manifestFile.getParentFile().exists())
-                manifestFile.getParentFile().mkdirs();
-
-            manifest.serializeToJsonFile(manifestFile);
-            return manifest;
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, manifestFile);
-        }
     }
 
     private List<String> mapToDataFilenames(Collection<SSTableReader> sstables)
@@ -1938,26 +1916,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         catch (IOException e)
         {
             throw new FSWriteError(e, schemaFile);
-        }
-    }
-
-    private void createEphemeralSnapshotMarkerFile(final String snapshot, File ephemeralSnapshotMarker)
-    {
-        try
-        {
-            if (!ephemeralSnapshotMarker.getParentFile().exists())
-                ephemeralSnapshotMarker.getParentFile().mkdirs();
-
-            Files.createFile(ephemeralSnapshotMarker.toPath());
-            if (logger.isTraceEnabled())
-                logger.trace("Created ephemeral snapshot marker file on {}.", ephemeralSnapshotMarker.getAbsolutePath());
-        }
-        catch (IOException e)
-        {
-            logger.warn(String.format("Could not create marker file %s for ephemeral snapshot %s. " +
-                                      "In case there is a failure in the operation that created " +
-                                      "this snapshot, you may need to clean it manually afterwards.",
-                                      ephemeralSnapshotMarker.getAbsolutePath(), snapshot), e);
         }
     }
 

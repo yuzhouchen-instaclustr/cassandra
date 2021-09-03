@@ -74,6 +74,7 @@ public class SnapshotManagerTest
             Instant.EPOCH,
             expiration,
             createFolders(),
+            false,
             (file) -> 0L
         );
     }
