@@ -1399,6 +1399,9 @@ audit_logging_options:
 # on internal state and temporal relationships across events, accessible by clients via JMX.
 diagnostic_events_enabled: false
 
+# If enabled, it will be possible to subscribe and unsubscribe to events via system_views.diagnostic table via CQL
+diagnostic_events_vtable_enabled: false
+
 # Use native transport TCP message coalescing. If on upgrade to 4.0 you found your throughput decreasing, and in
 # particular you run an old kernel or have very fewer client connections, this option might be worth evaluating.
 #native_transport_flush_in_batches_legacy: false

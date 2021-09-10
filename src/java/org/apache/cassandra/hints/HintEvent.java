@@ -29,7 +29,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 /**
  * DiagnosticEvent implementation for hinted handoff.
  */
-final class HintEvent extends DiagnosticEvent
+public final class HintEvent extends DiagnosticEvent
 {
     enum HintEventType
     {

@@ -26,7 +26,7 @@ import org.apache.cassandra.diag.DiagnosticEvent;
 /**
  * Events related to {@link PendingRangeCalculatorService}.
  */
-final class PendingRangeCalculatorServiceEvent extends DiagnosticEvent
+public final class PendingRangeCalculatorServiceEvent extends DiagnosticEvent
 {
     private final PendingRangeCalculatorServiceEventType type;
     private final PendingRangeCalculatorService source;

@@ -26,7 +26,7 @@ import org.apache.cassandra.diag.DiagnosticEvent;
 /**
  * DiagnosticEvent implementation for HintService.
  */
-final class HintsServiceEvent extends DiagnosticEvent
+public final class HintsServiceEvent extends DiagnosticEvent
 {
     enum HintsServiceEventType
     {

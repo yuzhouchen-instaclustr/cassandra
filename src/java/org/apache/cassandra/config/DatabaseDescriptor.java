@@ -3104,6 +3104,16 @@ public class DatabaseDescriptor
         conf.diagnostic_events_enabled = enabled;
     }
 
+    public static boolean diagnosticEventsVTableEnabled()
+    {
+        return conf.diagnostic_events_vtable_enabled;
+    }
+
+    public static void setDiagnosticEventsVTableEnabled(boolean enabled)
+    {
+        conf.diagnostic_events_vtable_enabled = enabled;
+    }
+
     public static ConsistencyLevel getIdealConsistencyLevel()
     {
         return conf.ideal_consistency_level;

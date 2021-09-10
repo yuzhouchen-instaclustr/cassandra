@@ -18,7 +18,6 @@
 package org.apache.cassandra.diag;
 
 import java.io.Serializable;
-import java.lang.management.ManagementFactory;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
@@ -27,8 +26,6 @@ import java.util.SortedMap;
 import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
@@ -288,9 +285,21 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
         return DatabaseDescriptor.diagnosticEventsEnabled();
     }
 
+    @Override
+    public boolean isDiagnosticsVTableEnabled()
+    {
+        return DatabaseDescriptor.diagnosticEventsVTableEnabled();
+    }
+
     public void disableDiagnostics()
     {
         DatabaseDescriptor.setDiagnosticEventsEnabled(false);
+    }
+
+    @Override
+    public void disableDiagnosticsVTable()
+    {
+        DatabaseDescriptor.setDiagnosticEventsVTableEnabled(false);
     }
 
     public SortedMap<Long, Map<String, Serializable>> readEvents(String eventClazz, Long lastKey, int limit)

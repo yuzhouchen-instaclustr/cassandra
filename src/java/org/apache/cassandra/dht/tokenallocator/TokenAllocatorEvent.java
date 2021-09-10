@@ -37,7 +37,7 @@ import org.apache.cassandra.diag.DiagnosticEvent;
 /**
  * DiagnosticEvent implementation for {@link TokenAllocator} activities.
  */
-final class TokenAllocatorEvent<Unit> extends DiagnosticEvent
+public final class TokenAllocatorEvent<Unit> extends DiagnosticEvent
 {
 
     private final TokenAllocatorEventType type;

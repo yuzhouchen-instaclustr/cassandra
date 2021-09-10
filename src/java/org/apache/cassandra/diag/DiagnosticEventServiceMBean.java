@@ -39,6 +39,22 @@ public interface DiagnosticEventServiceMBean
     void disableDiagnostics();
 
     /**
+     * Disables logic around diagnostics vtable. Events will not be possible to subscribe or unsubscribe by CQL
+     * via system_views.diagnostic table.
+     */
+    default void disableDiagnosticsVTable() {}
+
+    /**
+     * Indicates if diagnostics vtable is enabled or not.
+     *
+     * @return true if diagnostics vtable is enabled, false otherwise
+     */
+    default boolean isDiagnosticsVTableEnabled()
+    {
+        return false;
+    }
+
+    /**
      * Retrieved all events of specified type starting with provided key. Result will be sorted chronologically.
      *
      * @param eventClazz fqn of event class

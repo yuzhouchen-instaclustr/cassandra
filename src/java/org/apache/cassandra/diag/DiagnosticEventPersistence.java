@@ -20,6 +20,7 @@ package org.apache.cassandra.diag;
 
 import java.io.InvalidClassException;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -31,6 +32,8 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.diag.store.DiagnosticEventMemoryStore;
 import org.apache.cassandra.diag.store.DiagnosticEventStore;
 
@@ -59,7 +62,24 @@ public final class DiagnosticEventPersistence
         return instance;
     }
 
-    public SortedMap<Long, Map<String, Serializable>> getEvents(String eventClazz, Long key, int limit, boolean includeKey)
+    public SortedMap<Long, Map<String, Serializable>> getEvents(Long key, int limit, boolean includeKey, boolean mustBeEnabled)
+    {
+        final SortedMap<Long, Map<String, Serializable>> result = new TreeMap<>();
+        stores.entrySet()
+              .stream()
+              .filter(entry -> !mustBeEnabled || DiagnosticEventService.instance().isEnabled(entry.getKey()))
+              .forEach(new Consumer<Map.Entry<Class, DiagnosticEventStore<Long>>>()
+              {
+                  @Override
+                  public void accept(Map.Entry<Class, DiagnosticEventStore<Long>> classDiagnosticEventStoreEntry)
+                  {
+                      result.putAll(getEvents(classDiagnosticEventStoreEntry.getKey().getName(), key, limit, includeKey, mustBeEnabled));
+                  }
+              });
+        return result;
+    }
+
+    public SortedMap<Long, Map<String, Serializable>> getEvents(String eventClazz, Long key, int limit, boolean includeKey, boolean mustBeEnabled)
     {
         assert eventClazz != null;
         assert key != null;
@@ -74,11 +94,17 @@ public final class DiagnosticEventPersistence
         {
             throw new RuntimeException(e);
         }
+
+        if (mustBeEnabled && !DiagnosticEventService.instance().isEnabled(cls))
+        {
+            return Collections.emptySortedMap();
+        }
+
         DiagnosticEventStore<Long> store = getStore(cls);
 
         NavigableMap<Long, DiagnosticEvent> events = store.scan(key, includeKey ? limit : limit + 1);
         if (!includeKey && !events.isEmpty()) events = events.tailMap(key, false);
-        TreeMap<Long, Map<String, Serializable>> ret = new TreeMap<>();
+        final TreeMap<Long, Map<String, Serializable>> ret = new TreeMap<>();
         for (Map.Entry<Long, DiagnosticEvent> entry : events.entrySet())
         {
             DiagnosticEvent event = entry.getValue();
@@ -93,12 +119,43 @@ public final class DiagnosticEventPersistence
         return ret;
     }
 
+    public SortedMap<Long, Map<String, Serializable>> getEvents(String eventClazz, Long key, int limit, boolean includeKey)
+    {
+        return getEvents(eventClazz, key, limit, includeKey, false);
+    }
+
     public void enableEventPersistence(String eventClazz)
+    {
+        enableEventPersistence(eventClazz, DatabaseDescriptor.diagnosticEventsVTableEnabled());
+    }
+
+    public void enableEventPersistence(String eventClazz, boolean updateVTable)
     {
         try
         {
             logger.debug("Enabling events: {}", eventClazz);
-            DiagnosticEventService.instance().subscribe(getEventClass(eventClazz), eventConsumer);
+            Class<DiagnosticEvent> clazz = getEventClass(eventClazz);
+            DiagnosticEventService.instance().subscribe(clazz, eventConsumer);
+
+            if (updateVTable && DatabaseDescriptor.diagnosticEventsVTableEnabled())
+                updateEventInDiagnosticsVTable(clazz);
+        }
+        catch (ClassNotFoundException | InvalidClassException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void disableEventPersistence(String eventClazz, boolean updateVtable)
+    {
+        try
+        {
+            logger.debug("Disabling events: {}", eventClazz);
+            Class<DiagnosticEvent> clazz = getEventClass(eventClazz);
+            DiagnosticEventService.instance().unsubscribe(clazz, eventConsumer);
+
+            if (updateVtable && DatabaseDescriptor.diagnosticEventsVTableEnabled())
+                updateEventInDiagnosticsVTable(clazz);
         }
         catch (ClassNotFoundException | InvalidClassException e)
         {
@@ -108,15 +165,14 @@ public final class DiagnosticEventPersistence
 
     public void disableEventPersistence(String eventClazz)
     {
-        try
-        {
-            logger.debug("Disabling events: {}", eventClazz);
-            DiagnosticEventService.instance().unsubscribe(getEventClass(eventClazz), eventConsumer);
-        }
-        catch (ClassNotFoundException | InvalidClassException e)
-        {
-            throw new RuntimeException(e);
-        }
+        disableEventPersistence(eventClazz, DatabaseDescriptor.diagnosticEventsVTableEnabled());
+    }
+
+    private void updateEventInDiagnosticsVTable(Class<DiagnosticEvent> eventClazz)
+    {
+        QueryProcessor.executeOnceInternal("UPDATE system_views.diagnostic SET enabled = ? WHERE event = ?;",
+                                           DiagnosticEventService.instance().hasSubscribers(eventClazz),
+                                           eventClazz.getName());
     }
 
     private void onEvent(DiagnosticEvent event)

@@ -481,6 +481,7 @@ public class Config
     public CorruptedTombstoneStrategy corrupted_tombstone_strategy = CorruptedTombstoneStrategy.disabled;
 
     public volatile boolean diagnostic_events_enabled = false;
+    public volatile boolean diagnostic_events_vtable_enabled = false;
 
     /**
      * flags for enabling tracking repaired state of data during reads

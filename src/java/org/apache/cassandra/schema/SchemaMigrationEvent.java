@@ -21,9 +21,7 @@ package org.apache.cassandra.schema;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Queue;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 
 import javax.annotation.Nullable;
 
@@ -37,7 +35,7 @@ import org.apache.cassandra.net.MessagingService;
 /**
  * Internal events emitted by {@link MigrationManager}.
  */
-final class SchemaMigrationEvent extends DiagnosticEvent
+public final class SchemaMigrationEvent extends DiagnosticEvent
 {
     private final MigrationManagerEventType type;
     @Nullable
