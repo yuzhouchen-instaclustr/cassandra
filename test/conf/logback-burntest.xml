@@ -56,7 +56,6 @@
     <filter class="org.apache.cassandra.net.LogbackFilter"/>
   </appender>
 
-  <logger name="org.apache.hadoop" level="WARN"/>
   <logger name="io.netty.handler.ssl.SslHandler" level="WARN"/>
 
   <root level="DEBUG">

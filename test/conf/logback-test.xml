@@ -57,8 +57,6 @@
       <appender-ref ref="STDOUT"/>
   </appender>
 
-  <logger name="org.apache.hadoop" level="WARN"/>
-
   <logger name="org.apache.cassandra.db.monitoring" level="DEBUG"/>
 
   <!-- Do not change the name of this appender. LogbackStatusListener uses the thread name

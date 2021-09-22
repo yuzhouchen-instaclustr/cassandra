@@ -37,7 +37,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.hsqldb.Table;
 
 /**
  * Provides a means to take snapshots when triggered by anomalous events or when the breaking of invariants is
