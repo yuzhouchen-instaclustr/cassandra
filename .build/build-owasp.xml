@@ -74,10 +74,10 @@
                           cveValidForHours="1"
                           centralAnalyzerUseCache="false"
                           nodeAuditAnalyzerUseCache="false"
-                          failBuildOnCVSS="9"
+                          failBuildOnCVSS="1"
                           dataDirectory="${dependency-check.home}/data"
                           suppressionFile="${basedir}/.build/dependency-check-suppressions.xml">
-            <fileset dir="${build.dir}/lib/jars">
+            <fileset dir="lib">
                 <include name="**/*.jar"/>
             </fileset>
         </dependency-check>

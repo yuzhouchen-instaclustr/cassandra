@@ -490,11 +490,11 @@
           <dependency groupId="org.lz4" artifactId="lz4-java" version="1.8.0"/>
           <dependency groupId="com.ning" artifactId="compress-lzf" version="0.8.4" scope="provided"/>
           <dependency groupId="com.github.luben" artifactId="zstd-jni" version="1.5.0-4"/>
-          <dependency groupId="com.google.guava" artifactId="guava" version="27.0-jre">
+          <dependency groupId="com.google.guava" artifactId="guava" version="30.1.1-jre">
             <exclusion groupId="com.google.code.findbugs" artifactId="jsr305" />
             <exclusion groupId="org.codehaus.mojo" artifactId="animal-sniffer-annotations" />
             <exclusion groupId="com.google.guava" artifactId="listenablefuture" />
-            <exclusion groupId="com.google.guava" artifactId="failureaccess" />
+<!--            <exclusion groupId="com.google.guava" artifactId="failureaccess" />-->
             <exclusion groupId="org.checkerframework" artifactId="checker-qual" />
             <exclusion groupId="com.google.errorprone" artifactId="error_prone_annotations" />
           </dependency>
@@ -572,7 +572,7 @@
           <dependency groupId="com.addthis.metrics" artifactId="reporter-config3" version="3.0.3">
             <exclusion groupId="org.hibernate" artifactId="hibernate-validator" />
            </dependency>
-          <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
+          <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.4" />
           <dependency groupId="io.airlift" artifactId="airline" version="0.8">
             <exclusion groupId="com.google.code.findbugs" artifactId="jsr305" />
            </dependency>
