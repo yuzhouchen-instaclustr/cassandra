@@ -63,6 +63,34 @@ public class CompressedSequentialWriter extends SequentialWriter
 
     private final int maxCompressedLength;
 
+
+    public CompressedSequentialWriter(File file,
+                                      SequentialWriterOption option,
+                                      String offsetsPath,
+                                      File digestFile,
+                                      CompressionParams parameters,
+                                      MetadataCollector sstableMetadataCollector)
+    {
+        super(file, SequentialWriterOption.newBuilder()
+                                          .bufferSize(option.bufferSize())
+                                          .bufferType(option.bufferType())
+                                          .bufferSize(parameters.chunkLength())
+                                          .bufferType(parameters.getSstableCompressor().preferredBufferType())
+                                          .finishOnClose(option.finishOnClose())
+                                          .build());
+        this.compressor = parameters.getSstableCompressor();
+        this.digestFile = Optional.ofNullable(digestFile);
+        // buffer for compression should be the same size as buffer itself
+        compressed = compressor.preferredBufferType().allocate(compressor.initialCompressedBufferLength(buffer.capacity()));
+        maxCompressedLength = parameters.maxCompressedLength();
+        /* Index File (-CompressionInfo.db component) and it's header */
+        metadataWriter = CompressionMetadata.Writer.open(parameters, offsetsPath);
+
+        this.sstableMetadataCollector = sstableMetadataCollector;
+        //crcMetadata = new DataIntegrityMetadata.ChecksumWriter(new DataOutputStream(Channels.newOutputStream(channel)));
+        crcMetadata = new ChecksumWriter(new DataOutputStream(Channels.newOutputStream(channel)));
+    }
+
     /**
      * Create CompressedSequentialWriter without digest file.
      *

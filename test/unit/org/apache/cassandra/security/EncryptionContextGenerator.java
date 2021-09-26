@@ -25,13 +25,21 @@ import java.util.Map;
 
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
+import org.apache.cassandra.io.compress.ICompressor;
+import org.apache.cassandra.utils.Pair;
 
 public class EncryptionContextGenerator
 {
     public static final String KEY_ALIAS_1 = "testing:1";
     public static final String KEY_ALIAS_2 = "testing:2";
 
-    public static EncryptionContext createContext(boolean init)
+     public static EncryptionContext createContext()
+    {
+        Pair<ParameterizedClass, ICompressor> compressor = EncryptionContext.defaultCompressor();
+        return new EncryptionContext(createEncryptionOptions(), compressor.left, compressor.right);
+    }
+
+    /*public static EncryptionContext createContext(boolean init)
     {
         return createContext(null, init);
     }
@@ -39,7 +47,7 @@ public class EncryptionContextGenerator
     public static EncryptionContext createContext(byte[] iv, boolean init)
     {
         return new EncryptionContext(createEncryptionOptions(), iv, init);
-    }
+    }*/
 
     public static TransparentDataEncryptionOptions createEncryptionOptions()
     {

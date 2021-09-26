@@ -179,25 +179,21 @@ public class SegmentReaderTest
     public void underlyingEncryptedSegmenterTest(BiFunction<FileDataInput, Integer, ByteBuffer> readFun)
             throws IOException
     {
-        EncryptionContext context = EncryptionContextGenerator.createContext(true);
-        CipherFactory cipherFactory = new CipherFactory(context.getTransparentDataEncryptionOptions());
-
+        EncryptionContext context = EncryptionContextGenerator.createContext();
         int plainTextLength = (1 << 13) - 137;
         ByteBuffer plainTextBuffer = ByteBuffer.allocate(plainTextLength);
         random.nextBytes(plainTextBuffer.array());
 
-        ByteBuffer compressedBuffer = EncryptionUtils.compress(plainTextBuffer, null, true, context.getCompressor());
-        Cipher cipher = cipherFactory.getEncryptor(context.getTransparentDataEncryptionOptions().cipher, context.getTransparentDataEncryptionOptions().key_alias);
         File encryptedFile = FileUtils.createTempFile("encrypted-segment-", ".log");
         encryptedFile.deleteOnExit();
         FileChannel channel = new RandomAccessFile(encryptedFile, "rw").getChannel();
         channel.write(ByteBufferUtil.bytes(plainTextLength));
-        EncryptionUtils.encryptAndWrite(compressedBuffer, channel, true, cipher);
+        context.encryptAndWrite(plainTextBuffer, channel);
         channel.close();
 
         try (RandomAccessReader reader = RandomAccessReader.open(encryptedFile))
         {
-            context = EncryptionContextGenerator.createContext(cipher.getIV(), true);
+            context = EncryptionContextGenerator.createContext();
             EncryptedSegmenter segmenter = new EncryptedSegmenter(reader, context);
             SyncSegment syncSegment = segmenter.nextSegment(0, (int) reader.length());
 

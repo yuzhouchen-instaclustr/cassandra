@@ -79,15 +79,16 @@ final class HintsDescriptor
     final ImmutableMap<String, Object> parameters;
     final ParameterizedClass compressionConfig;
 
-    private final Cipher cipher;
-    private final ICompressor compressor;
+    //private final Cipher cipher;
+   // private final ICompressor compressor;
+    private final EncryptionContext encryptionContext;
 
     HintsDescriptor(UUID hostId, int version, long timestamp, ImmutableMap<String, Object> parameters)
     {
         this.hostId = hostId;
         this.version = version;
         this.timestamp = timestamp;
-        compressionConfig = createCompressionConfig(parameters);
+        /*compressionConfig = createCompressionConfig(parameters);
 
         EncryptionData encryption = createEncryption(parameters);
         if (encryption == null)
@@ -102,8 +103,9 @@ final class HintsDescriptor
             cipher = encryption.cipher;
             compressor = encryption.compressor;
             parameters = encryption.params;
-        }
-
+        }*/
+	compressionConfig = createCompressionConfig(parameters);
+        encryptionContext = createEncryption(parameters);
         this.parameters = parameters;
     }
 
@@ -143,12 +145,13 @@ final class HintsDescriptor
      * of the {@code params} map.
      */
     @SuppressWarnings("unchecked")
-    static EncryptionData createEncryption(ImmutableMap<String, Object> params)
+    static EncryptionContext  createEncryption(ImmutableMap<String, Object> params)
     {
         if (params.containsKey(ENCRYPTION))
         {
             Map<?, ?> encryptionConfig = (Map<?, ?>) params.get(ENCRYPTION);
-            EncryptionContext encryptionContext = EncryptionContext.createFromMap(encryptionConfig, DatabaseDescriptor.getEncryptionContext());
+            return  EncryptionContext.createFromMap(encryptionConfig, DatabaseDescriptor.getEncryptionContext());
+		/*EncryptionContext encryptionContext = EncryptionContext.createFromMap(encryptionConfig, DatabaseDescriptor.getEncryptionContext());
 
             try
             {
@@ -175,7 +178,7 @@ final class HintsDescriptor
             {
                 logger.warn("failed to create encyption context for hints file. ignoring encryption for hints.", ioe);
                 return null;
-            }
+            }*/
         }
         else
         {
@@ -290,7 +293,7 @@ final class HintsDescriptor
 
     public boolean isEncrypted()
     {
-        return cipher != null;
+        return encryptionContext  != null;
     }
 
     public ICompressor createCompressor()
@@ -298,14 +301,19 @@ final class HintsDescriptor
         if (isCompressed())
             return CompressionParams.createCompressor(compressionConfig);
         if (isEncrypted())
-            return compressor;
+            return encryptionContext.getCompressor();
         return null;
     }
 
-    public Cipher getCipher()
+     public EncryptionContext getEncryptionContext()
+    {
+        return encryptionContext;
+    }
+
+  /*  public Cipher getCipher()
     {
         return isEncrypted() ? cipher : null;
-    }
+    }*/
 
     @Override
     public String toString()

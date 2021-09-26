@@ -249,6 +249,14 @@ public class CommitLogReader
             // is wrapping an IOException.
             catch (RuntimeException re)
             {
+                if (re instanceof IllegalStateException)
+                {
+                    handler.handleUnrecoverableError(new CommitLogReadException(
+                    String.format("Unable to create segment reader for commit log file: %s", re.getMessage()),
+                    CommitLogReadErrorReason.UNRECOVERABLE_UNKNOWN_ERROR,
+                    tolerateTruncation));
+                    return;
+                }
                 if (re.getCause() instanceof IOException)
                     throw (IOException) re.getCause();
                 throw re;

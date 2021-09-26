@@ -24,6 +24,8 @@ import javax.crypto.Cipher;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.security.EncryptionContext.ChannelProxyReadChannel;
 import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.ICompressor;
@@ -40,21 +42,24 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         }
     };
 
-    private final Cipher cipher;
-    private final ICompressor compressor;
-
-    private final EncryptionUtils.ChannelProxyReadChannel readChannel;
+    //private final Cipher cipher;
+    //private final ICompressor compressor;
+    
+    private final EncryptionContext encryptionContext;
+    private final ChannelProxyReadChannel readChannel;
     private long sourcePosition;
 
-    protected EncryptedChecksummedDataInput(ChannelProxy channel, Cipher cipher, ICompressor compressor, long filePosition)
+    protected EncryptedChecksummedDataInput(ChannelProxy channel, EncryptionContext encryptionContext, long filePosition)
     {
         super(channel);
-        this.cipher = cipher;
-        this.compressor = compressor;
-        readChannel = new EncryptionUtils.ChannelProxyReadChannel(channel, filePosition);
+       // this.cipher = cipher;
+       // this.compressor = compressor;
+        assert encryptionContext != null;
+        this.encryptionContext = encryptionContext;
+        readChannel = new EncryptionContext.ChannelProxyReadChannel(channel, filePosition);
         this.sourcePosition = filePosition;
-        assert cipher != null;
-        assert compressor != null;
+        //assert cipher != null;
+        //assert compressor != null;
     }
 
     /**
@@ -71,7 +76,7 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         return sourcePosition;
     }
 
-    static class Position extends ChecksummedDataInput.Position
+    /*static class Position extends ChecksummedDataInput.Position
     {
         final long bufferStart;
         final int bufferPosition;
@@ -108,12 +113,22 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         assert sourcePosition == pos.sourcePosition;
         assert bufferOffset == pos.bufferStart;
         assert buffer.position() == pos.bufferPosition;
-    }
+    }*/
 
     @Override
     protected void readBuffer()
     {
-        this.sourcePosition = readChannel.getCurrentPosition();
+         try
+        {
+            buffer = encryptionContext.decrypt(readChannel, buffer, true);
+            buffer.flip();
+        }
+        catch (IOException ioe)
+        {
+            throw new FSReadError(ioe, getPath());
+        }
+
+        /*this.sourcePosition = readChannel.getCurrentPosition();
         if (isEOF())
             return;
 
@@ -129,11 +144,11 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         catch (IOException ioe)
         {
             throw new FSReadError(ioe, getPath());
-        }
+        }*/
     }
 
     @SuppressWarnings("resource")
-    public static ChecksummedDataInput upgradeInput(ChecksummedDataInput input, Cipher cipher, ICompressor compressor)
+    public static ChecksummedDataInput upgradeInput(ChecksummedDataInput input, EncryptionContext encryptionContext)
     {
         long position = input.getPosition();
         input.close();
@@ -141,7 +156,7 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         ChannelProxy channel = new ChannelProxy(input.getPath());
         try
         {
-            return new EncryptedChecksummedDataInput(channel, cipher, compressor, position);
+            return new EncryptedChecksummedDataInput(channel, encryptionContext, position);
         }
         catch (Throwable t)
         {
@@ -150,7 +165,12 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
     }
 
     @VisibleForTesting
-    Cipher getCipher()
+    public EncryptionContext getEncryptionContext()
+    {
+        return encryptionContext;
+    }
+
+    /*Cipher getCipher()
     {
         return cipher;
     }
@@ -159,5 +179,5 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
     ICompressor getCompressor()
     {
         return compressor;
-    }
+    }*/
 }

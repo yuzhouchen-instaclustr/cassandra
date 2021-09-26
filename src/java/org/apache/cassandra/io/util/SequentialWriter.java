@@ -292,6 +292,17 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         }
     }
 
+    /**
+     * Get the number of bytes the file *should* be. The file on disk may be longer if we had some corruption while writing
+     * reset to earlier in the file (possibly did some more writes), but then the final "useful" size is less than
+     * the size on disk. Typically, this should be called before a file truncate command.
+     */
+    public long finalLength()
+    {
+        assert !fchannel.isOpen();
+        return position();
+    }
+
     public String getPath()
     {
         return filePath;

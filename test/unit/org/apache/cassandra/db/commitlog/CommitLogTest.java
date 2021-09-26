@@ -129,10 +129,10 @@ public abstract class CommitLogTest
 
     private static EncryptionContext newEncryptionContext() throws Exception
     {
-        EncryptionContext context = EncryptionContextGenerator.createContext(true);
+        EncryptionContext context = EncryptionContextGenerator.createContext();//true);
         CipherFactory cipherFactory = new CipherFactory(context.getTransparentDataEncryptionOptions());
         Cipher cipher = cipherFactory.getEncryptor(context.getTransparentDataEncryptionOptions().cipher, context.getTransparentDataEncryptionOptions().key_alias);
-        return EncryptionContextGenerator.createContext(cipher.getIV(), true);
+        return EncryptionContextGenerator.createContext();//cipher.getIV(), true);
     }
 
     public static void beforeClass() throws ConfigurationException
@@ -258,6 +258,8 @@ public abstract class CommitLogTest
             CommitLog.instance.recoverFiles(file1, file1, file2);
             return null;
         }, CommitLogReplayException.class);
+        file1.delete();
+        file2.delete();
     }
 
     @Test
@@ -571,7 +573,7 @@ public abstract class CommitLogTest
 
 
         ByteBuffer buf = ByteBuffer.allocate(1024);
-        CommitLogDescriptor.writeHeader(buf, desc, getAdditionalHeaders(encryptionContext));
+        CommitLogDescriptor.writeHeader(buf, desc);
         buf.flip();
         int positionAfterHeader = buf.limit() + 1;
 
@@ -583,17 +585,6 @@ public abstract class CommitLogTest
         }
 
         return Pair.create(logFile, positionAfterHeader);
-    }
-
-    private Map<String, String> getAdditionalHeaders(EncryptionContext encryptionContext)
-    {
-        if (!encryptionContext.isEnabled())
-            return Collections.emptyMap();
-
-        // if we're testing encryption, we need to write out a cipher IV to the descriptor headers
-        byte[] buf = new byte[16];
-        new Random().nextBytes(buf);
-        return Collections.singletonMap(EncryptionContext.ENCRYPTION_IV, Hex.bytesToHex(buf));
     }
 
     protected File tmpFile(int version)
@@ -622,7 +613,7 @@ public abstract class CommitLogTest
         // Change id to match file.
         desc = new CommitLogDescriptor(desc.version, fromFile.id, desc.compression, desc.getEncryptionContext());
         ByteBuffer buf = ByteBuffer.allocate(1024);
-        CommitLogDescriptor.writeHeader(buf, desc, getAdditionalHeaders(desc.getEncryptionContext()));
+        CommitLogDescriptor.writeHeader(buf, desc);
         try (OutputStream lout = new FileOutputStream(logFile))
         {
             lout.write(buf.array(), 0, buf.position());

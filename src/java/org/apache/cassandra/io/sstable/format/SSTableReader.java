@@ -62,6 +62,7 @@ import org.apache.cassandra.io.sstable.metadata.*;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.schema.CachingParams;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
@@ -724,6 +725,35 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             IndexSummary.serializer.serialize(summary, oStream);
             ByteBufferUtil.writeWithLength(first.getKey(), oStream);
             ByteBufferUtil.writeWithLength(last.getKey(), oStream);
+        }
+        catch (IOException e)
+        {
+            logger.trace("Cannot save SSTable Summary: ", e);
+
+            // corrupted hence delete it and let it load it now.
+            if (summariesFile.exists())
+                FileUtils.deleteWithConfirm(summariesFile);
+        }
+    }
+    /**
+     * Save index summary to Summary.db file.
+     */
+    public static void saveSummary(Descriptor descriptor, DecoratedKey first, DecoratedKey last, IndexSummary summary, Optional<CompressionParams> compressionParams)
+    {
+        File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
+        if (summariesFile.exists())
+            FileUtils.deleteWithConfirm(summariesFile);
+
+        try (DataOutputStreamPlus oStream = compressionParams.isPresent() ?
+                                            new BufferedDataOutputStreamPlus(new EncryptedSummaryWritableByteChannel(
+                                                                                                                    new FileOutputStream(summariesFile), compressionParams.get(), DatabaseDescriptor.getEncryptionContext())) :
+                                            new BufferedDataOutputStreamPlus(new FileOutputStream(summariesFile)))
+        {
+            IndexSummary.serializer.serialize(summary, oStream);
+            ByteBufferUtil.writeWithLength(first.getKey(), oStream);
+            ByteBufferUtil.writeWithLength(last.getKey(), oStream);
+            //ibuilder.serializeBounds(oStream, descriptor.version);
+            //dbuilder.serializeBounds(oStream, descriptor.version);
         }
         catch (IOException e)
         {

@@ -327,7 +327,7 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
     {
         private final RandomAccessReader reader;
         private final ICompressor compressor;
-        private final Cipher cipher;
+        //private final Cipher cipher;
 
         /**
          * the result of the decryption is written into this buffer.
@@ -357,23 +357,26 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
             compressor = encryptionContext.getCompressor();
             nextLogicalStart = reader.getFilePointer();
 
-            try
+           /* try
             {
                 cipher = encryptionContext.getDecryptor();
             }
             catch (IOException ioe)
             {
                 throw new FSReadError(ioe, reader.getPath());
-            }
+            }*/
 
             chunkProvider = () -> {
                 if (reader.getFilePointer() >= currentSegmentEndPosition)
                     return ByteBufferUtil.EMPTY_BYTE_BUFFER;
                 try
                 {
-                    decryptedBuffer = EncryptionUtils.decrypt(reader, decryptedBuffer, true, cipher);
-                    uncompressedBuffer = EncryptionUtils.uncompress(decryptedBuffer, uncompressedBuffer, true, compressor);
-                    return uncompressedBuffer;
+                    decryptedBuffer = encryptionContext.decrypt(reader, decryptedBuffer, true);
+                    decryptedBuffer.flip();
+                    return decryptedBuffer;
+                    //decryptedBuffer = EncryptionUtils.decrypt(reader, decryptedBuffer, true, cipher);
+                    //uncompressedBuffer = EncryptionUtils.uncompress(decryptedBuffer, uncompressedBuffer, true, compressor);
+                    //return uncompressedBuffer;
                 }
                 catch (IOException e)
                 {

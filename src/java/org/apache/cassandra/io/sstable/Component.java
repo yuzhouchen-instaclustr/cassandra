@@ -49,6 +49,8 @@ public class Component
         FILTER("Filter.db"),
         // file to hold information about uncompressed data length, chunk offsets etc.
         COMPRESSION_INFO("CompressionInfo.db"),
+        // file to hold information about uncompressed data length, chunk offsets, etc, for the PRIMARY_INDEX file
+        INDEX_COMPRESSION_INFO("IndexCompressionInfo.db"),
         // statistical metadata about the content of the sstable
         STATS("Statistics.db"),
         // holds CRC32 checksum of the data file
@@ -88,6 +90,7 @@ public class Component
     public final static Component PRIMARY_INDEX = new Component(Type.PRIMARY_INDEX);
     public final static Component FILTER = new Component(Type.FILTER);
     public final static Component COMPRESSION_INFO = new Component(Type.COMPRESSION_INFO);
+    public final static Component INDEX_COMPRESSION_INFO = new Component(Type.INDEX_COMPRESSION_INFO);
     public final static Component STATS = new Component(Type.STATS);
     public final static Component DIGEST = new Component(Type.DIGEST);
     public final static Component CRC = new Component(Type.CRC);
@@ -138,6 +141,7 @@ public class Component
             case PRIMARY_INDEX:    return Component.PRIMARY_INDEX;
             case FILTER:           return Component.FILTER;
             case COMPRESSION_INFO: return Component.COMPRESSION_INFO;
+            case INDEX_COMPRESSION_INFO: return Component.INDEX_COMPRESSION_INFO;
             case STATS:            return Component.STATS;
             case DIGEST:           return Component.DIGEST;
             case CRC:              return Component.CRC;

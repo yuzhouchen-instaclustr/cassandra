@@ -26,6 +26,7 @@ import javax.crypto.Cipher;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.io.compress.ICompressor;
 
@@ -33,33 +34,36 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
 
 public class EncryptedHintsWriter extends HintsWriter
 {
-    private final Cipher cipher;
-    private final ICompressor compressor;
+   // private final Cipher cipher;
+    //private final ICompressor compressor;
     private volatile ByteBuffer byteBuffer;
+    private final EncryptionContext encryptionContext;
 
     protected EncryptedHintsWriter(File directory, HintsDescriptor descriptor, File file, FileChannel channel, int fd, CRC32 globalCRC)
     {
         super(directory, descriptor, file, channel, fd, globalCRC);
-        cipher = descriptor.getCipher();
-        compressor = descriptor.createCompressor();
+        //cipher = descriptor.getCipher();
+        //compressor = descriptor.createCompressor();
+        encryptionContext = descriptor.getEncryptionContext();
     }
 
     protected void writeBuffer(ByteBuffer input) throws IOException
     {
-        byteBuffer = EncryptionUtils.compress(input, byteBuffer, true, compressor);
+       /* byteBuffer = EncryptionUtils.compress(input, byteBuffer, true, compressor);
         ByteBuffer output = EncryptionUtils.encryptAndWrite(byteBuffer, channel, true, cipher);
-        updateChecksum(globalCRC, output);
+        updateChecksum(globalCRC, output);*/
+	encryptionContext.encryptAndWrite(input, channel, (outBuffer) -> updateChecksum(globalCRC, outBuffer));
     }
 
     @VisibleForTesting
-    Cipher getCipher()
+    Cipher getCipher() throws IOException
     {
-        return cipher;
+        return  encryptionContext.getEncryptor(false);
     }
 
     @VisibleForTesting
     ICompressor getCompressor()
     {
-        return compressor;
+        return encryptionContext.getCompressor();
     }
 }

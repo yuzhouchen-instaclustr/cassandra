@@ -21,6 +21,7 @@
 package org.apache.cassandra.security;
 
 import java.io.IOException;
+import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 
@@ -41,7 +42,7 @@ import static org.junit.Assert.fail;
 public class CipherFactoryTest
 {
     // http://www.gutenberg.org/files/4300/4300-h/4300-h.htm
-    static final String ULYSSEUS = "Stately, plump Buck Mulligan came from the stairhead, bearing a bowl of lather on which a mirror and a razor lay crossed. " +
+    public static final String ULYSSEUS = "Stately, plump Buck Mulligan came from the stairhead, bearing a bowl of lather on which a mirror and a razor lay crossed. " +
                                    "A yellow dressinggown, ungirdled, was sustained gently behind him on the mild morning air. He held the bowl aloft and intoned: " +
                                    "-Introibo ad altare Dei.";
     TransparentDataEncryptionOptions encryptionOptions;
@@ -70,7 +71,7 @@ public class CipherFactoryTest
     @Test
     public void roundTrip() throws IOException, BadPaddingException, IllegalBlockSizeException
     {
-        Cipher encryptor = cipherFactory.getEncryptor(encryptionOptions.cipher, encryptionOptions.key_alias);
+        Cipher encryptor = cipherFactory.getEncryptor(encryptionOptions.cipher, encryptionOptions.key_alias, true);
         byte[] original = ULYSSEUS.getBytes(Charsets.UTF_8);
         byte[] encrypted = encryptor.doFinal(original);
 
@@ -86,7 +87,7 @@ public class CipherFactoryTest
         return b;
     }
 
-    @Test
+   /* @Test
     public void buildCipher_SameParams() throws Exception
     {
         byte[] iv = nextIV();
@@ -102,7 +103,7 @@ public class CipherFactoryTest
         Cipher c1 = cipherFactory.buildCipher(encryptionOptions.cipher, encryptionOptions.key_alias, iv, Cipher.ENCRYPT_MODE);
         Cipher c2 = cipherFactory.buildCipher(encryptionOptions.cipher, encryptionOptions.key_alias, iv, Cipher.DECRYPT_MODE);
         Assert.assertFalse(c1 == c2);
-    }
+    }*/
 
     @Test
     public void buildCipher_DifferentIVs() throws Exception
@@ -120,13 +121,13 @@ public class CipherFactoryTest
         Assert.assertFalse(c1 == c2);
     }
 
-    @Test(expected = AssertionError.class)
+    @Test(expected = IOException.class)
     public void getDecryptor_NullIv() throws IOException
     {
         cipherFactory.getDecryptor(encryptionOptions.cipher, encryptionOptions.key_alias, null);
     }
 
-    @Test(expected = AssertionError.class)
+    @Test(expected = IOException.class)
     public void getDecryptor_EmptyIv() throws IOException
     {
         cipherFactory.getDecryptor(encryptionOptions.cipher, encryptionOptions.key_alias, new byte[0]);

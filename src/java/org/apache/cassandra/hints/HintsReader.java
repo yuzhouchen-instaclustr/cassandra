@@ -86,7 +86,8 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 reader = CompressedChecksummedDataInput.upgradeInput(reader, descriptor.createCompressor());
             }
             else if (descriptor.isEncrypted())
-                reader = EncryptedChecksummedDataInput.upgradeInput(reader, descriptor.getCipher(), descriptor.createCompressor());
+	            reader = EncryptedChecksummedDataInput.upgradeInput(reader, descriptor.getEncryptionContext());
+               // reader = EncryptedChecksummedDataInput.upgradeInput(reader, descriptor.getCipher(), descriptor.createCompressor());
             return new HintsReader(descriptor, file, reader, rateLimiter);
         }
         catch (IOException e)
