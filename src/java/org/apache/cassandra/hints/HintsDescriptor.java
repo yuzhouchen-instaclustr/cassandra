@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -49,7 +48,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.security.EncryptionContext;
-import org.apache.cassandra.utils.Hex;
 import org.json.simple.JSONValue;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
@@ -81,31 +79,15 @@ final class HintsDescriptor
     final ImmutableMap<String, Object> parameters;
     final ParameterizedClass compressionConfig;
 
-    private final Cipher cipher;
-    private final ICompressor compressor;
+    private final EncryptionContext encryptionContext;
 
     HintsDescriptor(UUID hostId, int version, long timestamp, ImmutableMap<String, Object> parameters)
     {
         this.hostId = hostId;
         this.version = version;
         this.timestamp = timestamp;
-        compressionConfig = createCompressionConfig(parameters);
-
-        EncryptionData encryption = createEncryption(parameters);
-        if (encryption == null)
-        {
-            cipher = null;
-            compressor = null;
-        }
-        else
-        {
-            if (compressionConfig != null)
-                throw new IllegalStateException("a hints file cannot be configured for both compression and encryption");
-            cipher = encryption.cipher;
-            compressor = encryption.compressor;
-            parameters = encryption.params;
-        }
-
+	    this.compressionConfig = createCompressionConfig(parameters);
+        this.encryptionContext = maybeCreateEncryptionContext(parameters);
         this.parameters = parameters;
     }
 
@@ -145,58 +127,14 @@ final class HintsDescriptor
      * of the {@code params} map.
      */
     @SuppressWarnings("unchecked")
-    static EncryptionData createEncryption(ImmutableMap<String, Object> params)
+    static EncryptionContext maybeCreateEncryptionContext(ImmutableMap<String, Object> params)
     {
-        if (params.containsKey(ENCRYPTION))
-        {
-            Map<?, ?> encryptionConfig = (Map<?, ?>) params.get(ENCRYPTION);
-            EncryptionContext encryptionContext = EncryptionContext.createFromMap(encryptionConfig, DatabaseDescriptor.getEncryptionContext());
+        Map<?, ?> encryptionConfig = (Map<?, ?>) params.get(ENCRYPTION);
 
-            try
-            {
-                Cipher cipher;
-                if (encryptionConfig.containsKey(EncryptionContext.ENCRYPTION_IV))
-                {
-                    cipher = encryptionContext.getDecryptor();
-                }
-                else
-                {
-                    cipher = encryptionContext.getEncryptor();
-                    ImmutableMap<String, Object> encParams = ImmutableMap.<String, Object>builder()
-                                                                 .putAll(encryptionContext.toHeaderParameters())
-                                                                 .put(EncryptionContext.ENCRYPTION_IV, Hex.bytesToHex(cipher.getIV()))
-                                                                 .build();
-
-                    Map<String, Object> map = new HashMap<>(params);
-                    map.put(ENCRYPTION, encParams);
-                    params = ImmutableMap.<String, Object>builder().putAll(map).build();
-                }
-                return new EncryptionData(cipher, encryptionContext.getCompressor(), params);
-            }
-            catch (IOException ioe)
-            {
-                logger.warn("failed to create encyption context for hints file. ignoring encryption for hints.", ioe);
-                return null;
-            }
-        }
-        else
-        {
+        if (encryptionConfig == null)
             return null;
-        }
-    }
-
-    private static final class EncryptionData
-    {
-        final Cipher cipher;
-        final ICompressor compressor;
-        final ImmutableMap<String, Object> params;
-
-        private EncryptionData(Cipher cipher, ICompressor compressor, ImmutableMap<String, Object> params)
-        {
-            this.cipher = cipher;
-            this.compressor = compressor;
-            this.params = params;
-        }
+        else
+            return  EncryptionContext.createFromMap(encryptionConfig, DatabaseDescriptor.getEncryptionContext());
     }
 
     String fileName()
@@ -292,7 +230,7 @@ final class HintsDescriptor
 
     public boolean isEncrypted()
     {
-        return cipher != null;
+        return encryptionContext  != null;
     }
 
     public ICompressor createCompressor()
@@ -300,13 +238,13 @@ final class HintsDescriptor
         if (isCompressed())
             return CompressionParams.createCompressor(compressionConfig);
         if (isEncrypted())
-            return compressor;
+            return encryptionContext.getCompressor();
         return null;
     }
 
-    public Cipher getCipher()
+     public EncryptionContext getEncryptionContext()
     {
-        return isEncrypted() ? cipher : null;
+        return encryptionContext;
     }
 
     @Override

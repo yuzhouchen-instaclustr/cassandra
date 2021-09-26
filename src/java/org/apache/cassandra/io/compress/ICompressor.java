@@ -83,4 +83,8 @@ public interface ICompressor
     {
         return ImmutableSet.copyOf(EnumSet.allOf(Uses.class));
     }
+    default boolean isEncrypting()
+    {
+        return false;
+    }
 }

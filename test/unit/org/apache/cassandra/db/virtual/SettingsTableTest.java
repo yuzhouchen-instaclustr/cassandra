@@ -244,7 +244,7 @@ public class SettingsTableTest extends CQLTester
         Assert.assertEquals(4, executeNet(all).all().size());
         check(pre + "enabled", "true");
 
-        check(pre + "cipher", "AES/CBC/PKCS5Padding");
+        check(pre + "cipher", "AES/GCM/NoPadding");
         config.transparent_data_encryption_options.cipher = "cipher";
         check(pre + "cipher", "cipher");
 

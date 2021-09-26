@@ -25,6 +25,8 @@ import java.util.*;
 import java.util.concurrent.*;
 
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Rule;

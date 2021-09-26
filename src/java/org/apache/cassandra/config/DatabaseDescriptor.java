@@ -749,6 +749,10 @@ public class DatabaseDescriptor
             throw new ConfigurationException("commitlog_segment_size_in_mb must be smaller than 2048, but was "
                     + conf.commitlog_segment_size_in_mb, false);
 
+        // always attempt to load the cipher factory, as we could be in the situation where the user has disabled encryption,
+        // but has existing commitlogs and sstables on disk that are still encrypted (and still need to be read)
+        encryptionContext = new EncryptionContext(conf.transparent_data_encryption_options);
+
         if (conf.max_mutation_size_in_kb == null)
             conf.max_mutation_size_in_kb = conf.commitlog_segment_size_in_mb * 1024 / 2;
         else if (conf.commitlog_segment_size_in_mb * 1024 < 2 * conf.max_mutation_size_in_kb)

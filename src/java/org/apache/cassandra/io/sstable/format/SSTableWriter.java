@@ -155,16 +155,21 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     private static Set<Component> components(TableMetadata metadata)
     {
         Set<Component> components = new HashSet<Component>(Arrays.asList(Component.DATA,
-                Component.PRIMARY_INDEX,
-                Component.STATS,
-                Component.SUMMARY,
-                Component.TOC,
-                Component.DIGEST));
+                                                                         Component.PRIMARY_INDEX,
+                                                                         Component.STATS,
+                                                                         Component.SUMMARY,
+                                                                         Component.TOC,
+                                                                         Component.DIGEST));
 
         if (metadata.params.bloomFilterFpChance < 1.0)
             components.add(Component.FILTER);
 
-        if (metadata.params.compression.isEnabled())
+        if (metadata.params.compression.isEncrypted())
+        {
+            components.add(Component.COMPRESSION_INFO);
+            components.add(Component.INDEX_COMPRESSION_INFO);
+        }
+        else if (metadata.params.compression.isEnabled())
         {
             components.add(Component.COMPRESSION_INFO);
         }

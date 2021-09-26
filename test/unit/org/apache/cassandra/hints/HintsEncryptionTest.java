@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.hints;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import javax.crypto.Cipher;
@@ -37,7 +38,7 @@ public class HintsEncryptionTest extends AlteredHints
     @Before
     public void setup()
     {
-        encryptionContext = EncryptionContextGenerator.createContext(true);
+        encryptionContext = EncryptionContextGenerator.createContext();
         DatabaseDescriptor.setEncryptionContext(encryptionContext);
     }
 
@@ -53,7 +54,7 @@ public class HintsEncryptionTest extends AlteredHints
             return false;
 
         EncryptedHintsWriter encryptedHintsWriter = (EncryptedHintsWriter)writer;
-        cipher = encryptedHintsWriter.getCipher();
+       // cipher = encryptedHintsWriter.getCipher();
 
         return encryptedHintsWriter.getCompressor().getClass().isAssignableFrom(encryptionContext.getCompressor().getClass());
     }
@@ -64,9 +65,18 @@ public class HintsEncryptionTest extends AlteredHints
             return false;
 
         EncryptedChecksummedDataInput encryptedDataInput = (EncryptedChecksummedDataInput)checksummedDataInput;
+         try
+        {
+            return encryptionContext.getEncryptor(false).getAlgorithm().equals(encryptedDataInput.getEncryptionContext().getEncryptor(false).getAlgorithm()) &&
+                   encryptionContext.getCompressor().getClass().isAssignableFrom(encryptionContext.getCompressor().getClass());
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
 
-        return Arrays.equals(cipher.getIV(), encryptedDataInput.getCipher().getIV()) &&
-               encryptedDataInput.getCompressor().getClass().isAssignableFrom(encryptionContext.getCompressor().getClass());
+//        return Arrays.equals(cipher.getIV(), encryptedDataInput.getCipher().getIV()) &&
+  //             encryptedDataInput.getCompressor().getClass().isAssignableFrom(encryptionContext.getCompressor().getClass());
     }
 
     ImmutableMap<String, Object> params()
