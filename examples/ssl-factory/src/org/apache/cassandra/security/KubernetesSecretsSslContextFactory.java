@@ -19,7 +19,6 @@
 package org.apache.cassandra.security;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Map;
@@ -40,9 +39,9 @@ import org.apache.cassandra.config.EncryptionOptions;
  * When keystore or truststore is updated, this implementation can detect that based on updated K8 secrets
  * at the mounted paths ({@code KEYSTORE_UPDATED_TIMESTAMP_PATH} for the keystore and {@code
  * TRUSTSTORE_UPDATED_TIMESTAMP_PATH} for the truststore. The values in those paths are expected to be numeric values.
- * Most obvious choice might be to just use time in nano/milli-seconds but any other strategy would work
+ * The most obvious choice might be to just use the time in nano/milli-seconds precision but any other strategy would work
  * as well, as far as the comparison of those values can be done in a consistent/predictable manner. Again, those
- * values don't have to necessarily reflect actual file's update timestamps, using the actual file's timestamps is
+ * values do not have to necessarily reflect actual file's update timestamps, using the actual file's timestamps is
  * just one of the valid options to signal updates.
  *
  * Defaults:
@@ -55,7 +54,7 @@ import org.apache.cassandra.config.EncryptionOptions;
  *     truststore updated timestamp path = /etc/my-ssl-store/truststore-last-updatedtime
  * </pre>
  *
- * Customization: In order to customize the K8s secret configuration, override appropriate values in the below cassandra
+ * Customization: In order to customize the K8s secret configuration, override appropriate values in the below Cassandra
  * configuration. The similar configuration can be applied to {@code client_encryption_options}.
  * <pre>
  *     server_encryption_options:
@@ -190,7 +189,7 @@ public class KubernetesSecretsSslContextFactory extends FileBasedSslContextFacto
      * Checks environment variables for {@code K8_SECRET_KEYSTORE_UPDATED_TIMESTAMP_ENV_VAR} and {@code K8_SECRET_TRUSTSTORE_UPDATED_TIMESTAMP_ENV_VAR}
      * and compares the values for those variables with the current timestamps. In case the environment variables are
      * not valid (either they are not initialized yet, got removed or got corrupted in-flight), this method considers
-     * that nothing is changed.
+     * that nothing has changed.
      * @return {@code true} if either of the timestamps (keystore or truststore) got updated;{@code false} otherwise
      */
     @Override
@@ -264,13 +263,13 @@ public class KubernetesSecretsSslContextFactory extends FileBasedSslContextFacto
     }
 
     private Optional<String> readSecretFromMountedVolume(String secretKeyPath) {
-        try (InputStream is = Files.newInputStream(Paths.get(secretKeyPath)))
+        try
         {
-            return Optional.of(new String(is.readAllBytes()));
+            return Optional.of(new String(Files.readAllBytes(Paths.get(secretKeyPath))));
         }
         catch (IOException e)
         {
-            logger.warn("Failed to read secretKeyPath {} from the mounted volume", secretKeyPath, e);
+            logger.warn(String.format("Failed to read secretKeyPath %s from the mounted volume: %s", secretKeyPath, e.getMessage()));
             return Optional.empty();
         }
     }

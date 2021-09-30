@@ -46,7 +46,9 @@ public class EncryptionOptions
 
     public enum TlsEncryptionPolicy
     {
-        UNENCRYPTED("unencrypted"), OPTIONAL("optionally encrypted"), ENCRYPTED("encrypted");
+        UNENCRYPTED("unencrypted"),
+        OPTIONAL("optionally encrypted"),
+        ENCRYPTED("encrypted");
 
         private final String description;
 
@@ -64,7 +66,7 @@ public class EncryptionOptions
     /*
      * If the ssl_context_factory is configured, most likely it won't use file based keystores and truststores and
      * can choose to completely customize SSL context's creation. Most likely it won't also use keystore_password and
-     *  truststore_passwords configurations as they are in plaintext format.
+     * truststore_passwords configurations as they are in plaintext format.
      */
     public final ParameterizedClass ssl_context_factory;
     public final String keystore;
@@ -88,8 +90,8 @@ public class EncryptionOptions
     protected Boolean optional;
 
     // Calculated by calling applyConfig() after populating/parsing
-    protected Boolean isEnabled = null;
-    protected Boolean isOptional = null;
+    protected Boolean isEnabled;
+    protected Boolean isOptional;
 
     /*
      * We will wait to initialize this until applyConfig() call to make sure we do it only when the caller is ready

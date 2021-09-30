@@ -39,9 +39,9 @@ import org.apache.cassandra.config.Config;
 
 /**
  * Abstract class implementing {@code ISslContextFacotry} to provide most of the functionality that any
- * implementation might need. This doesn't assume any file based credentials for keys/certs hence provide a good base
+ * implementation might need. This does not assume any file-based credentials for keys/certs hence provide a good base
  * for any implementation that only need to customize the loading of keys/certs in a custom way.
- *
+ * <p>
  * {@code CAUTION:} While this is extremely useful abstraction, please be careful if you need to modify this class
  * given possible custom implementations out there!
  *
@@ -49,14 +49,15 @@ import org.apache.cassandra.config.Config;
  */
 abstract public class AbstractSslContextFactory implements ISslContextFactory
 {
-    /* This list is substituted in configurations that have explicitly specified the original "TLS" default,
-     * by extracting it from the default "TLS" SSL Context instance
+    /*
+    This list is substituted in configurations that have explicitly specified the original "TLS" default,
+    by extracting it from the default "TLS" SSL Context instance
      */
     static protected final List<String> TLS_PROTOCOL_SUBSTITUTION = SSLFactory.tlsInstanceProtocolSubstitution();
 
     protected boolean openSslIsAvailable;
 
-    protected final Map<String,Object> parameters;
+    protected final Map<String, Object> parameters;
     protected final List<String> cipher_suites;
     protected final String protocol;
     protected final List<String> accepted_protocols;
@@ -64,17 +65,20 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     protected final String store_type;
     protected final boolean require_client_auth;
     protected final boolean require_endpoint_verification;
-    // ServerEncryptionOptions does not use the enabled flag at all instead using the existing
-    // internode_encryption option. So we force this private and expose through isEnabled
-    // so users of ServerEncryptionOptions can't accidentally use this when they should use isEnabled
-    // Long term we need to refactor ClientEncryptionOptions and ServerEncryptionOptions to be separate
-    // classes so we can choose appropriate configuration for each.
-    // See CASSANDRA-15262 and CASSANDRA-15146
+    /*
+    ServerEncryptionOptions does not use the enabled flag at all instead using the existing
+    internode_encryption option. So we force this protected and expose through isEnabled
+    so users of ServerEncryptionOptions can't accidentally use this when they should use isEnabled
+    Long term we need to refactor ClientEncryptionOptions and ServerEncryptionOptions to be separate
+    classes so we can choose appropriate configuration for each.
+    See CASSANDRA-15262 and CASSANDRA-15146
+     */
     protected Boolean enabled;
     protected Boolean optional;
 
     /* For test only */
-    protected AbstractSslContextFactory(){
+    protected AbstractSslContextFactory()
+    {
         parameters = new HashMap<>();
         cipher_suites = null;
         protocol = null;
@@ -88,7 +92,8 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
         deriveIfOpenSslAvailable();
     }
 
-    protected AbstractSslContextFactory(Map<String,Object> parameters) {
+    protected AbstractSslContextFactory(Map<String, Object> parameters)
+    {
         this.parameters = parameters;
         cipher_suites = getStringList("cipher_suites");
         protocol = getString("protocol");
@@ -98,7 +103,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
         require_client_auth = getBoolean("require_client_auth", false);
         require_endpoint_verification = getBoolean("require_endpoint_verification", false);
         enabled = getBoolean("enabled");
-        this.optional = getBoolean("optional");
+        optional = getBoolean("optional");
         deriveIfOpenSslAvailable();
     }
 
@@ -107,32 +112,37 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
      * setting {@code cassandra.disable_tcactive_openssl} system property as {@code true}. Otherwise, it creates a
      * circular reference that prevents the instance class loader from being garbage collected.
      */
-    protected void deriveIfOpenSslAvailable() {
-        if (Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_tcactive_openssl")) {
+    protected void deriveIfOpenSslAvailable()
+    {
+        if (Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_tcactive_openssl"))
             openSslIsAvailable = false;
-        } else {
+        else
             openSslIsAvailable = OpenSsl.isAvailable();
-        }
     }
 
-    protected String getString(String key, String defaultValue) {
-        return this.parameters.get(key) == null ? defaultValue : (String)this.parameters.get(key);
+    protected String getString(String key, String defaultValue)
+    {
+        return parameters.get(key) == null ? defaultValue : (String) parameters.get(key);
     }
 
-    protected String getString(String key) {
-        return (String)this.parameters.get(key);
+    protected String getString(String key)
+    {
+        return (String) parameters.get(key);
     }
 
-    protected List<String> getStringList(String key) {
-        return (List<String>)this.parameters.get(key);
+    protected List<String> getStringList(String key)
+    {
+        return (List<String>) parameters.get(key);
     }
 
-    protected Boolean getBoolean(String key, boolean defaultValue) {
-        return this.parameters.get(key) == null ? defaultValue : (Boolean)this.parameters.get(key);
+    protected Boolean getBoolean(String key, boolean defaultValue)
+    {
+        return parameters.get(key) == null ? defaultValue : (Boolean) parameters.get(key);
     }
 
-    protected Boolean getBoolean(String key) {
-        return (Boolean)this.parameters.get(key);
+    protected Boolean getBoolean(String key)
+    {
+        return (Boolean) this.parameters.get(key);
     }
 
     @Override
@@ -196,6 +206,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     /**
      * Combine the pre-4.0 protocol field with the accepted_protocols list, substituting a list of
      * explicit protocols for the previous catchall default of "TLS"
+     *
      * @return array of protocol names suitable for passing to SslContextBuilder.protocols, or null if the default
      */
     @Override
@@ -208,7 +219,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
                 return null;
             }
             // TLS is accepted by SSLContext.getInstance as a shorthand for give me an engine that
-            // can speak some of the TLS protocols.  It is not supported by SSLEngine.setAcceptedProtocols
+            // can speak some TLS protocols.  It is not supported by SSLEngine.setAcceptedProtocols
             // so substitute if the user hasn't provided an accepted protocol configuration
             else if (protocol.equalsIgnoreCase("TLS"))
             {
@@ -234,15 +245,18 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     }
 
     @Override
-    public List<String> getCipherSuites() {
+    public List<String> getCipherSuites()
+    {
         return cipher_suites;
     }
 
     /**
      * Returns {@link SslProvider} to be used to build Netty's SslContext.
+     *
      * @return appropriate SslProvider
      */
-    protected SslProvider getSslProvider() {
+    protected SslProvider getSslProvider()
+    {
         return openSslIsAvailable ? SslProvider.OPENSSL : SslProvider.JDK;
     }
 

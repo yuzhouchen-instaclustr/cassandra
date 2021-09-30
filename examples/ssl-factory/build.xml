@@ -31,6 +31,7 @@
 	<property name="test.build.dir" value="${build.dir}/test" />
 	<property name="test.conf.dir" value="${test.src}/conf" />
 	<property name="test.build.classes" value="${test.build.dir}/classes" />
+	<property name="test.build.conf" value="${test.build.dir}/conf" />
 	<property name="final.name" value="ssl-factory-example" />
 
 	<path id="build.classpath">
@@ -51,6 +52,7 @@
 		<path refid="build.classpath"/>
 		<path location="${build.dir}/${final.name}.jar"/>
 		<pathelement location="${test.build.classes}"/>
+		<pathelement location="${test.build.conf}"/>
 	</path>
 
 	<target name="init">
@@ -72,8 +74,11 @@
 	</target>
 
 	<target name="buildTests" depends="init">
+		<deltree dir="${test.build.dir}/conf"/>
+		<copydir src="test/conf" dest="${test.build.dir}/conf"/>
 		<javac destdir="${test.build.classes}" debug="true" includeantruntime="false">
 			<src path="${test.src}" />
+			<src path="${test.build.dir}/conf" />
 			<classpath refid="test.classpath"/>
 		</javac>
 	</target>

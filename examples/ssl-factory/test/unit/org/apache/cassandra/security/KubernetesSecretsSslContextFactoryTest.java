@@ -50,17 +50,19 @@ public class KubernetesSecretsSslContextFactoryTest
     private static final String TRUSTSTORE_PATH = EncryptionOptions.ConfigKey.TRUSTSTORE.toString();
     private static final String KEYSTORE_PATH = EncryptionOptions.ConfigKey.KEYSTORE.toString();
 
-    private Map<String,Object> commonConfig = new HashMap<>();
-    private final static String truststoreUpdatedTimestampFilepath = "test/conf/cassandra_truststore_last_updatedtime";
-    private final static String keystoreUpdatedTimestampFilepath = "test/conf/cassandra_keystore_last_updatedtime";
+    private Map<String, Object> commonConfig = new HashMap<>();
+    private final static String truststoreUpdatedTimestampFilepath = "build/test/conf/cassandra_truststore_last_updatedtime";
+    private final static String keystoreUpdatedTimestampFilepath = "build/test/conf/cassandra_keystore_last_updatedtime";
 
     private static class KubernetesSecretsSslContextFactoryForTestOnly extends KubernetesSecretsSslContextFactory
     {
 
-        public KubernetesSecretsSslContextFactoryForTestOnly() {
+        public KubernetesSecretsSslContextFactoryForTestOnly()
+        {
         }
 
-        public KubernetesSecretsSslContextFactoryForTestOnly(Map<String,Object> config) {
+        public KubernetesSecretsSslContextFactoryForTestOnly(Map<String, Object> config)
+        {
             super(config);
         }
 
@@ -70,12 +72,16 @@ public class KubernetesSecretsSslContextFactoryTest
          * given key then fallback to loading from the real environment variables.
          */
         @Override
-        String getValueFromEnv(String envVarName, String defaultValue) {
+        String getValueFromEnv(String envVarName, String defaultValue)
+        {
             String envVarValue = parameters.get(envVarName) != null ? parameters.get(envVarName).toString() : null;
-            if (StringUtils.isEmpty(envVarValue)) {
+            if (StringUtils.isEmpty(envVarValue))
+            {
                 logger.info("Configuration doesn't have env variable {}. Will use parent's implementation", envVarName);
                 return super.getValueFromEnv(envVarName, defaultValue);
-            } else {
+            }
+            else
+            {
                 logger.info("Configuration has env variable {} with value {}. Will use that.",
                             envVarName, envVarValue);
                 return envVarValue;
@@ -92,15 +98,16 @@ public class KubernetesSecretsSslContextFactoryTest
 
     private static void deleteFileIfExists(String filePath)
     {
-        try {
-            logger.info("Deleting the file {} to prepare for the tests", filePath);
+        try
+        {
+            logger.info("Deleting the file {} to prepare for the tests", new File(filePath).getAbsolutePath());
             File file = new File(filePath);
             if (file.exists())
             {
                 file.delete();
             }
         }
-        catch(Exception e)
+        catch (Exception e)
         {
             logger.warn("File {} could not be deleted.", filePath, e);
         }
@@ -109,22 +116,21 @@ public class KubernetesSecretsSslContextFactoryTest
     @Before
     public void setup()
     {
-        commonConfig.put(TRUSTSTORE_PATH, "test/conf/cassandra_ssl_test.truststore");
+        commonConfig.put(TRUSTSTORE_PATH, "build/test/conf/cassandra_ssl_test.truststore");
         commonConfig.put(TRUSTSTORE_PASSWORD_ENV_VAR, "MY_TRUSTSTORE_PASSWORD");
         commonConfig.put(TRUSTSTORE_UPDATED_TIMESTAMP_PATH, truststoreUpdatedTimestampFilepath);
         /*
          * In order to test with real 'env' variables comment out this line and set appropriate env variable. This is
-         *  done to avoid having a dependency on env in the unit test.
+         * done to avoid having a dependency on env in the unit test.
          */
         commonConfig.put("MY_TRUSTSTORE_PASSWORD", "cassandra");
         commonConfig.put("require_client_auth", Boolean.FALSE);
         commonConfig.put("cipher_suites", Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA"));
     }
 
-    private void addKeystoreOptions(Map<String,Object> config)
+    private void addKeystoreOptions(Map<String, Object> config)
     {
-        config.put(KEYSTORE_PATH, "test/conf/cassandra_ssl_test" +
-                                  ".keystore");
+        config.put(KEYSTORE_PATH, "build/test/conf/cassandra_ssl_test.keystore");
         config.put(KEYSTORE_PASSWORD_ENV_VAR, "MY_KEYSTORE_PASSWORD");
         config.put(KEYSTORE_UPDATED_TIMESTAMP_PATH, keystoreUpdatedTimestampFilepath);
         /*
@@ -137,7 +143,7 @@ public class KubernetesSecretsSslContextFactoryTest
     @Test(expected = IOException.class)
     public void buildTrustManagerFactoryWithInvalidTruststoreFile() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         config.put(TRUSTSTORE_PATH, "/this/is/probably/not/a/file/on/your/test/machine");
 
@@ -149,7 +155,7 @@ public class KubernetesSecretsSslContextFactoryTest
     @Test(expected = IOException.class)
     public void buildTrustManagerFactoryWithBadPassword() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         config.remove(TRUSTSTORE_PASSWORD_ENV_VAR);
         config.put(KubernetesSecretsSslContextFactory.DEFAULT_TRUSTSTORE_PASSWORD_ENV_VAR_NAME, "HomeOfBadPasswords");
@@ -162,9 +168,9 @@ public class KubernetesSecretsSslContextFactoryTest
     @Test
     public void buildTrustManagerFactoryWithEmptyPassword() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
-        config.put(TRUSTSTORE_PATH, "test/conf/cassandra_ssl_test.truststore-without-password");
+        config.put(TRUSTSTORE_PATH, "build/test/conf/cassandra_ssl_test.truststore-without-password");
         config.remove(TRUSTSTORE_PASSWORD_ENV_VAR);
         config.put(KubernetesSecretsSslContextFactory.DEFAULT_TRUSTSTORE_PASSWORD_ENV_VAR_NAME, "");
 
@@ -176,7 +182,7 @@ public class KubernetesSecretsSslContextFactoryTest
     @Test
     public void buildTrustManagerFactoryHappyPath() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
 
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory = new KubernetesSecretsSslContextFactoryForTestOnly(config);
@@ -188,7 +194,7 @@ public class KubernetesSecretsSslContextFactoryTest
     @Test(expected = IOException.class)
     public void buildKeyManagerFactoryWithInvalidKeystoreFile() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         config.put(KEYSTORE_PATH, "/this/is/probably/not/a/file/on/your/test/machine");
 
@@ -200,9 +206,9 @@ public class KubernetesSecretsSslContextFactoryTest
     @Test(expected = IOException.class)
     public void buildKeyManagerFactoryWithBadPassword() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
-        config.put(KEYSTORE_PATH, "test/conf/cassandra_ssl_test.keystore");
+        config.put(KEYSTORE_PATH, "build/test/conf/cassandra_ssl_test.keystore");
         config.put(KubernetesSecretsSslContextFactory.DEFAULT_KEYSTORE_PASSWORD_ENV_VAR_NAME, "HomeOfBadPasswords");
 
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory = new KubernetesSecretsSslContextFactoryForTestOnly(config);
@@ -212,7 +218,7 @@ public class KubernetesSecretsSslContextFactoryTest
     @Test
     public void buildKeyManagerFactoryHappyPath() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
 
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory1 = new KubernetesSecretsSslContextFactoryForTestOnly(config);
@@ -236,7 +242,7 @@ public class KubernetesSecretsSslContextFactoryTest
     @Test
     public void checkTruststoreUpdateReloading() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         addKeystoreOptions(config);
 
@@ -246,7 +252,7 @@ public class KubernetesSecretsSslContextFactoryTest
         Assert.assertNotNull(trustManagerFactory);
         Assert.assertFalse(kubernetesSecretsSslContextFactory.shouldReload());
 
-        updateTimestampFile(config,TRUSTSTORE_UPDATED_TIMESTAMP_PATH);
+        updateTimestampFile(config, TRUSTSTORE_UPDATED_TIMESTAMP_PATH);
         Assert.assertTrue(kubernetesSecretsSslContextFactory.shouldReload());
 
         config.remove(TRUSTSTORE_UPDATED_TIMESTAMP_PATH);
@@ -256,7 +262,7 @@ public class KubernetesSecretsSslContextFactoryTest
     @Test
     public void checkKeystoreUpdateReloading() throws IOException
     {
-        Map<String,Object> config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         addKeystoreOptions(config);
 
@@ -273,13 +279,14 @@ public class KubernetesSecretsSslContextFactoryTest
         Assert.assertFalse(kubernetesSecretsSslContextFactory.shouldReload());
     }
 
-    private void updateTimestampFile(Map<String, Object> config, String filePathKey) {
+    private void updateTimestampFile(Map<String, Object> config, String filePathKey)
+    {
         String filePath = config.containsKey(filePathKey) ? config.get(filePathKey).toString() : null;
         try (OutputStream os = Files.newOutputStream(Paths.get(filePath)))
         {
             String timestamp = String.valueOf(System.nanoTime());
             os.write(timestamp.getBytes());
-            logger.info("Successfully wrote to file {}",filePath);
+            logger.info("Successfully wrote to file {}", filePath);
         }
         catch (IOException e)
         {

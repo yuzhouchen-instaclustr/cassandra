@@ -40,7 +40,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Abstract implementation for {@link ISslContextFactory} using file based, standard keystore format with the ability
  * to hot-reload the files upon file changes (detected by the {@code last modified timestamp}).
- *
+ * <p>
  * {@code CAUTION:} While this is a useful abstraction, please be careful if you need to modify this class
  * given possible custom implementations out there!
  */
@@ -85,26 +85,31 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
     }
 
     @Override
-    public boolean hasKeystore() {
+    public boolean hasKeystore()
+    {
         return keystore != null && new File(keystore).exists();
     }
 
-    private boolean hasTruststore() {
+    private boolean hasTruststore()
+    {
         return truststore != null && new File(truststore).exists();
     }
 
     @Override
-    public synchronized void initHotReloading() {
+    public synchronized void initHotReloading()
+    {
         boolean hasKeystore = hasKeystore();
         boolean hasTruststore = hasTruststore();
 
-        if (hasKeystore || hasTruststore) {
+        if (hasKeystore || hasTruststore)
+        {
             List<HotReloadableFile> fileList = new ArrayList<>();
             if (hasKeystore)
             {
                 fileList.add(new HotReloadableFile(keystore));
             }
-            if (hasTruststore) {
+            if (hasTruststore)
+            {
                 fileList.add(new HotReloadableFile(truststore));
             }
             hotReloadableFiles = fileList;

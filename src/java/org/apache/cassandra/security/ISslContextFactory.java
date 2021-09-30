@@ -30,15 +30,15 @@ import io.netty.handler.ssl.SslContext;
  * objects. Please use the Cassandra configuration key {@code ssl_context_factory} as part of {@code
  * client_encryption_options}/{@code server_encryption_options} and provide a custom class-name implementing this
  * interface with parameters to be used to plugin a your own way to load the SSLContext.
- *
+ * <p>
  * Implementation of this interface must have a constructor with argument of type {@code Map<String,Object>} to allow
  * custom parameters, needed by the implementation, to be passed from the yaml configuration. Common SSL
  * configurations like {@code protocol, algorithm, cipher_suites, accepted_protocols, require_client_auth,
  * require_endpoint_verification, enabled, optional} will also be passed to that map by Cassanddra.
- *
+ * <p>
  * Since on top of Netty, Cassandra is internally using JSSE SSLContext also for certain use-cases- this interface
  * has methods for both.
- *
+ * <p>
  * Below is an example of how to configure a custom implementation with parameters
  * <pre>
  * ssl_context_factory:
@@ -64,9 +64,9 @@ public interface ISslContextFactory
      * Creates Netty's SslContext object.
      *
      * @param verifyPeerCertificate {@code true} if SSL peer's certificate needs to be verified; {@code false} otherwise
-     * @param socketType {@link SocketType} for Netty's Inbound or Outbound channels
-     * @param cipherFilter to allow Netty's cipher suite filtering, e.g.
-     * {@link io.netty.handler.ssl.SslContextBuilder#ciphers(Iterable, CipherSuiteFilter)}
+     * @param socketType            {@link SocketType} for Netty's Inbound or Outbound channels
+     * @param cipherFilter          to allow Netty's cipher suite filtering, e.g.
+     *                              {@link io.netty.handler.ssl.SslContextBuilder#ciphers(Iterable, CipherSuiteFilter)}
      * @return Netty's {@link SslContext}
      * @throws SSLException in case the Ssl Context creation fails for some reason
      */
@@ -75,6 +75,7 @@ public interface ISslContextFactory
 
     /**
      * Initializes hot reloading of the security keys/certs. The implementation must guarantee this to be thread safe.
+     *
      * @throws SSLException
      */
     void initHotReloading() throws SSLException;
@@ -83,20 +84,24 @@ public interface ISslContextFactory
      * Returns if any changes require the reloading of the SSL context returned by this factory.
      * This will be called by Cassandra's periodic polling for any potential changes that will reload the SSL context.
      * However only newer connections established after the reload will use the reloaded SSL context.
+     *
      * @return {@code true} if SSL Context needs to be reload; {@code false} otherwise
      */
     boolean shouldReload();
 
     /**
      * Returns if this factory uses private keystore.
+     *
      * @return {@code true} by default unless the implementation overrides this
      */
-    default boolean hasKeystore() {
+    default boolean hasKeystore()
+    {
         return true;
     }
 
     /**
      * Returns the prepared list of accepted protocols.
+     *
      * @return array of protocol names suitable for passing to Netty's SslContextBuilder.protocols, or null if the
      * default
      */
@@ -104,6 +109,7 @@ public interface ISslContextFactory
 
     /**
      * Returns the list of cipher suites supported by the implementation.
+     *
      * @return List of supported cipher suites
      */
     List<String> getCipherSuites();
@@ -111,7 +117,8 @@ public interface ISslContextFactory
     /**
      * Indicates if the process holds the inbound/listening (Server) end of the socket or the outbound side (Client).
      */
-    enum SocketType {
+    enum SocketType
+    {
         SERVER, CLIENT;
     }
 }
