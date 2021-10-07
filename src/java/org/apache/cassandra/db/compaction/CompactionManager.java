@@ -122,7 +122,6 @@ public class CompactionManager implements CompactionManagerMBean
     private final AtomicInteger globalCompactionPauseCount = new AtomicInteger(0);
 
     private final RateLimiter compactionRateLimiter = RateLimiter.create(Double.MAX_VALUE);
-    private final RateLimiter validationRateLimiter = RateLimiter.create(Double.MAX_VALUE);
 
     /**
      * Gets compaction rate limiter.
@@ -136,22 +135,6 @@ public class CompactionManager implements CompactionManagerMBean
         return compactionRateLimiter;
     }
 
-    public RateLimiter getValidationRateLimiter()
-    {
-        setValidationRate(DatabaseDescriptor.getValidationThroughtputMbPerSec());
-        return validationRateLimiter;
-    }
-
-    protected static void setLimiterRate(final RateLimiter limiter, final double throughPutMbPerSec)
-    {
-        double throughput = throughPutMbPerSec * 1024.0 * 1024.0;
-        // if throughput is set to 0, throttling is disabled
-        if (throughput == 0 || StorageService.instance.isBootstrapMode())
-            throughput = Double.MAX_VALUE;
-        if (limiter.getRate() != throughput)
-            limiter.setRate(throughput);
-    }
-
     /**
      * Sets the rate for the rate limiter. When compaction_throughput_mb_per_sec is 0 or node is bootstrapping,
      * this sets the rate to Double.MAX_VALUE bytes per second.
@@ -159,12 +142,12 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public void setRate(final double throughPutMbPerSec)
     {
-        setLimiterRate(compactionRateLimiter, throughPutMbPerSec);
-    }
-
-    public void setValidationRate(final double throughPutMbPerSec)
-    {
-        setLimiterRate(validationRateLimiter, throughPutMbPerSec);
+        double throughput = throughPutMbPerSec * 1024.0 * 1024.0;
+        // if throughput is set to 0, throttling is disabled
+        if (throughput == 0 || StorageService.instance.isBootstrapMode())
+            throughput = Double.MAX_VALUE;
+        if (compactionRateLimiter.getRate() != throughput)
+            compactionRateLimiter.setRate(throughput);
     }
 
     /**
@@ -1446,7 +1429,7 @@ public class CompactionManager implements CompactionManagerMBean
             // Create Merkle trees suitable to hold estimated partitions for the given ranges.
             // We blindly assume that a partition is evenly distributed on all sstables for now.
             MerkleTrees tree = createMerkleTrees(sstables, validator.desc.ranges, cfs);
-            RateLimiter limiter = getValidationRateLimiter();
+            RateLimiter limiter = getRateLimiter();
             long start = System.nanoTime();
             try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables, validator.desc.ranges);
                  ValidationCompactionController controller = new ValidationCompactionController(cfs, gcBefore);

@@ -1487,17 +1487,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         CompactionManager.instance.setRate(value);
     }
 
-    public int getValidationThroughputMbPerSec()
-    {
-        return DatabaseDescriptor.getValidationThroughtputMbPerSec();
-    }
-
-    public void setValidationThroughputMbPerSec(int value)
-    {
-        DatabaseDescriptor.setValidationThroughputMbPerSec(value);
-        CompactionManager.instance.setValidationRate(value);
-    }
-
     public int getConcurrentCompactors()
     {
         return DatabaseDescriptor.getConcurrentCompactors();
