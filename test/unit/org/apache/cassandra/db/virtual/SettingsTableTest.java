@@ -244,7 +244,7 @@ public class SettingsTableTest extends CQLTester
         Assert.assertEquals(4, executeNet(all).all().size());
         check(pre + "enabled", "true");
 
-        check(pre + "cipher", "AES/CBC/PKCS5Padding");
+        check(pre + "cipher", "AES/GCM/NoPadding");
         config.transparent_data_encryption_options.cipher = "cipher";
         check(pre + "cipher", "cipher");
 
@@ -252,7 +252,7 @@ public class SettingsTableTest extends CQLTester
         config.transparent_data_encryption_options.chunk_length_kb = 5;
         check(pre + "chunk_length_kb", "5");
 
-        check(pre + "iv_length", "16");
+        check(pre + "iv_length", "12");
         config.transparent_data_encryption_options.iv_length = 7;
         check(pre + "iv_length", "7");
     }

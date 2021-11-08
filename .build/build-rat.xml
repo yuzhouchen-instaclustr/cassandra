@@ -69,6 +69,7 @@
                  <exclude name="**/tools/cqlstress-example.yaml"/>
                  <exclude name="**/tools/cqlstress-insanity-example.yaml"/>
                  <exclude name="**/tools/cqlstress-lwt-example.yaml"/>
+		 <exclude name="**/tools/cqlstress-insanity-example_crypto.yaml"/>
                  <!-- NOTICE files -->
                  <exclude NAME="**/NOTICE.md"/>
                  <!-- LICENSE files -->

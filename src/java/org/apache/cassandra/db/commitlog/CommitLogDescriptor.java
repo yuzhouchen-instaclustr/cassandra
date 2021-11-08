@@ -120,14 +120,21 @@ public class CommitLogDescriptor
     static String constructParametersString(ParameterizedClass compression, EncryptionContext encryptionContext, Map<String, String> additionalHeaders)
     {
         Map<String, Object> params = new TreeMap<>();
+        if (encryptionContext != null && encryptionContext.isEnabled())
+        {
+            params.putAll(encryptionContext.toHeaderParameters());
+        }
+
         if (compression != null)
         {
-            params.put(COMPRESSION_PARAMETERS_KEY, compression.parameters);
+            if(compression.parameters != null)
+                params.put(COMPRESSION_PARAMETERS_KEY, compression.parameters);
             params.put(COMPRESSION_CLASS_KEY, compression.class_name);
         }
-        if (encryptionContext != null)
-            params.putAll(encryptionContext.toHeaderParameters());
-        params.putAll(additionalHeaders);
+
+        if (additionalHeaders != null)
+            params.putAll(additionalHeaders);
+
         return JSONValue.toJSONString(params);
     }
 
@@ -181,11 +188,15 @@ public class CommitLogDescriptor
     {
         if (params == null || params.isEmpty())
             return null;
+
         String className = (String) params.get(COMPRESSION_CLASS_KEY);
         if (className == null)
             return null;
 
-        Map<String, String> cparams = (Map<String, String>) params.get(COMPRESSION_PARAMETERS_KEY);
+        Map<String, String> cparams = null;
+        if (params.containsKey(COMPRESSION_PARAMETERS_KEY))
+            cparams= (Map<String, String>) params.get(COMPRESSION_PARAMETERS_KEY);
+
         return new ParameterizedClass(className, cparams);
     }
 

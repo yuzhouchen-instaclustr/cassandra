@@ -49,6 +49,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
@@ -109,7 +110,7 @@ public class BigTableWriter extends SSTableWriter
         dbuilder = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).compressed(compression)
                                               .mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap);
         chunkCache.ifPresent(dbuilder::withChunkCache);
-        iwriter = new IndexWriter(keyCount);
+        iwriter = new IndexWriter(keyCount, metadata.get());
 
         columnIndexWriter = new ColumnIndex(this.header, dataFile, descriptor.version, this.observers, getRowIndexEntrySerializer().indexInfoSerializer());
     }
@@ -539,11 +540,15 @@ public class BigTableWriter extends SSTableWriter
         public final IndexSummaryBuilder summary;
         public final IFilter bf;
         private DataPosition mark;
+        private final CompressionParams compressionParams;
 
-        IndexWriter(long keyCount)
+        IndexWriter(long keyCount, final TableMetadata metadata)
         {
-            indexFile = new SequentialWriter(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), writerOption);
-            builder = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX)).mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap);
+            compressionParams = metadata.params.compression;
+            String indexFileName = descriptor.filenameFor(Component.PRIMARY_INDEX);
+            indexFile = new SequentialWriter(new File(indexFileName), writerOption);
+            builder = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX))
+                .mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap);
             chunkCache.ifPresent(builder::withChunkCache);
             summary = new IndexSummaryBuilder(keyCount, metadata().params.minIndexInterval, Downsampling.BASE_SAMPLING_LEVEL);
             bf = FilterFactory.getFilter(keyCount, metadata().params.bloomFilterFpChance);
@@ -619,15 +624,16 @@ public class BigTableWriter extends SSTableWriter
             flushBf();
 
             // truncate index file
-            long position = indexFile.position();
             indexFile.prepareToCommit();
-            FileUtils.truncate(indexFile.getPath(), position);
+            FileUtils.truncate(indexFile.getPath(), indexFile.finalLength());
 
             // save summary
             summary.prepareToCommit();
             try (IndexSummary indexSummary = summary.build(getPartitioner()))
             {
-                SSTableReader.saveSummary(descriptor, first, last, indexSummary);
+                CompressionParams compParams = compressionParams.getSstableCompressor() != null && compressionParams.getSstableCompressor().isEncrypting() ?
+                                               compressionParams : null;
+                SSTableReader.saveSummary(descriptor, first, last, indexSummary, compParams);
             }
         }
 

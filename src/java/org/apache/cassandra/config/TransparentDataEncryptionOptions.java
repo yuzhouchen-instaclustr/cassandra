@@ -22,16 +22,23 @@ import com.google.common.base.Objects;
 
 public class TransparentDataEncryptionOptions
 {
-    public boolean enabled = false;
+    public boolean enabled;
     public int chunk_length_kb = 64;
-    public String cipher = "AES/CBC/PKCS5Padding";
+    public String cipher = "AES/GCM/NoPadding";
     public String key_alias;
-    public int iv_length = 16;
+    public int iv_length = 12;
 
     public ParameterizedClass key_provider;
 
+    public static TransparentDataEncryptionOptions disabled()
+    {
+        return new TransparentDataEncryptionOptions();
+    }
+
     public TransparentDataEncryptionOptions()
-    {   }
+    {
+        this(false);
+    }
 
     public TransparentDataEncryptionOptions(boolean enabled)
     {
@@ -47,8 +54,8 @@ public class TransparentDataEncryptionOptions
     {
         this.enabled = enabled;
         this.cipher = cipher;
-        key_alias = keyAlias;
-        key_provider = keyProvider;
+        this.key_alias = keyAlias;
+        this.key_provider = keyProvider;
     }
 
     public String get(String key)
@@ -69,8 +76,9 @@ public class TransparentDataEncryptionOptions
 
     public boolean equals(TransparentDataEncryptionOptions other)
     {
-        // not sure if this is a great equals() impl....
         return Objects.equal(cipher, other.cipher) &&
-               Objects.equal(key_alias, other.key_alias);
+               Objects.equal(key_alias, other.key_alias) &&
+               Objects.equal(iv_length, other.iv_length) &&
+               Objects.equal(chunk_length_kb, other.chunk_length_kb);
     }
 }

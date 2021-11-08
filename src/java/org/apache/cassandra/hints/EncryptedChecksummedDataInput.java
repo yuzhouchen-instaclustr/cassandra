@@ -18,43 +18,28 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import javax.crypto.Cipher;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.security.EncryptionUtils;
+import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.security.EncryptionContext.ChannelProxyReadChannel;
 import org.apache.cassandra.io.FSReadError;
-import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.utils.Throwables;
 
 public class EncryptedChecksummedDataInput extends ChecksummedDataInput
 {
-    private static final FastThreadLocal<ByteBuffer> reusableBuffers = new FastThreadLocal<ByteBuffer>()
-    {
-        protected ByteBuffer initialValue()
-        {
-            return ByteBuffer.allocate(0);
-        }
-    };
-
-    private final Cipher cipher;
-    private final ICompressor compressor;
-
-    private final EncryptionUtils.ChannelProxyReadChannel readChannel;
+    private final EncryptionContext encryptionContext;
+    private final ChannelProxyReadChannel readChannel;
     private long sourcePosition;
 
-    protected EncryptedChecksummedDataInput(ChannelProxy channel, Cipher cipher, ICompressor compressor, long filePosition)
+    protected EncryptedChecksummedDataInput(ChannelProxy channel, EncryptionContext encryptionContext, long filePosition)
     {
         super(channel);
-        this.cipher = cipher;
-        this.compressor = compressor;
-        readChannel = new EncryptionUtils.ChannelProxyReadChannel(channel, filePosition);
+        assert encryptionContext != null;
+        this.encryptionContext = encryptionContext;
+        readChannel = new EncryptionContext.ChannelProxyReadChannel(channel, filePosition);
         this.sourcePosition = filePosition;
-        assert cipher != null;
-        assert compressor != null;
     }
 
     /**
@@ -119,12 +104,8 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
 
         try
         {
-            ByteBuffer byteBuffer = reusableBuffers.get();
-            ByteBuffer decrypted = EncryptionUtils.decrypt(readChannel, byteBuffer, true, cipher);
-            buffer = EncryptionUtils.uncompress(decrypted, buffer, true, compressor);
-
-            if (decrypted.capacity() > byteBuffer.capacity())
-                reusableBuffers.set(decrypted);
+            buffer = encryptionContext.decrypt(readChannel, buffer, true);
+            buffer.flip();
         }
         catch (IOException ioe)
         {
@@ -133,7 +114,7 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
     }
 
     @SuppressWarnings("resource")
-    public static ChecksummedDataInput upgradeInput(ChecksummedDataInput input, Cipher cipher, ICompressor compressor)
+    public static ChecksummedDataInput upgradeInput(ChecksummedDataInput input, EncryptionContext encryptionContext)
     {
         long position = input.getPosition();
         input.close();
@@ -141,7 +122,7 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         ChannelProxy channel = new ChannelProxy(input.getPath());
         try
         {
-            return new EncryptedChecksummedDataInput(channel, cipher, compressor, position);
+            return new EncryptedChecksummedDataInput(channel, encryptionContext, position);
         }
         catch (Throwable t)
         {
@@ -150,14 +131,8 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
     }
 
     @VisibleForTesting
-    Cipher getCipher()
+    public EncryptionContext getEncryptionContext()
     {
-        return cipher;
-    }
-
-    @VisibleForTesting
-    ICompressor getCompressor()
-    {
-        return compressor;
+        return encryptionContext;
     }
 }

@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.zip.CRC32;
-import javax.crypto.Cipher;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.AbstractIterator;
@@ -38,7 +37,6 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileSegmentInputStream;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.CompressionParams;
-import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -327,17 +325,11 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
     {
         private final RandomAccessReader reader;
         private final ICompressor compressor;
-        private final Cipher cipher;
 
         /**
          * the result of the decryption is written into this buffer.
          */
         private ByteBuffer decryptedBuffer;
-
-        /**
-         * the result of the decryption is written into this buffer.
-         */
-        private ByteBuffer uncompressedBuffer;
 
         private final ChunkProvider chunkProvider;
 
@@ -357,23 +349,14 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
             compressor = encryptionContext.getCompressor();
             nextLogicalStart = reader.getFilePointer();
 
-            try
-            {
-                cipher = encryptionContext.getDecryptor();
-            }
-            catch (IOException ioe)
-            {
-                throw new FSReadError(ioe, reader.getPath());
-            }
-
             chunkProvider = () -> {
                 if (reader.getFilePointer() >= currentSegmentEndPosition)
                     return ByteBufferUtil.EMPTY_BYTE_BUFFER;
                 try
                 {
-                    decryptedBuffer = EncryptionUtils.decrypt(reader, decryptedBuffer, true, cipher);
-                    uncompressedBuffer = EncryptionUtils.uncompress(decryptedBuffer, uncompressedBuffer, true, compressor);
-                    return uncompressedBuffer;
+                    decryptedBuffer = encryptionContext.decrypt(reader, decryptedBuffer, true);
+                    decryptedBuffer.flip();
+                    return decryptedBuffer;
                 }
                 catch (IOException e)
                 {

@@ -20,7 +20,6 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -65,7 +64,7 @@ public class CommitLogDescriptorTest
         compression = new ParameterizedClass(LZ4Compressor.class.getName(), params);
 
         enabledTdeOptions = EncryptionContextGenerator.createEncryptionOptions();
-        enabledEncryption = new EncryptionContext(enabledTdeOptions, iv, false);
+        enabledEncryption = EncryptionContextGenerator.createContext();//new EncryptionContext(enabledTdeOptions, iv, false);
         
         neverEnabledEncryption = EncryptionContextGenerator.createDisabledContext();
         TransparentDataEncryptionOptions disaabledTdeOptions = new TransparentDataEncryptionOptions(false, enabledTdeOptions.cipher, enabledTdeOptions.key_alias, enabledTdeOptions.key_provider);
@@ -141,11 +140,11 @@ public class CommitLogDescriptorTest
     @Test
     public void constructParametersString_NoCompressionOrEncryption()
     {
-        String json = CommitLogDescriptor.constructParametersString(null, null, Collections.emptyMap());
+        String json = CommitLogDescriptor.constructParametersString(null, null, null);
         Assert.assertFalse(json.contains(CommitLogDescriptor.COMPRESSION_CLASS_KEY));
         Assert.assertFalse(json.contains(EncryptionContext.ENCRYPTION_CIPHER));
 
-        json = CommitLogDescriptor.constructParametersString(null, neverEnabledEncryption, Collections.emptyMap());
+        json = CommitLogDescriptor.constructParametersString(null, neverEnabledEncryption, null);
         Assert.assertFalse(json.contains(CommitLogDescriptor.COMPRESSION_CLASS_KEY));
         Assert.assertFalse(json.contains(EncryptionContext.ENCRYPTION_CIPHER));
     }
@@ -153,7 +152,7 @@ public class CommitLogDescriptorTest
     @Test
     public void constructParametersString_WithCompressionAndEncryption()
     {
-        String json = CommitLogDescriptor.constructParametersString(compression, enabledEncryption, Collections.emptyMap());
+        String json = CommitLogDescriptor.constructParametersString(compression, enabledEncryption, null);
         Assert.assertTrue(json.contains(CommitLogDescriptor.COMPRESSION_CLASS_KEY));
         Assert.assertTrue(json.contains(EncryptionContext.ENCRYPTION_CIPHER));
     }
@@ -198,7 +197,6 @@ public class CommitLogDescriptorTest
         Assert.assertNotNull(result);
         Assert.assertNull(result.compression);
         Assert.assertTrue(result.getEncryptionContext().isEnabled());
-        Assert.assertArrayEquals(iv, result.getEncryptionContext().getIV());
     }
 
     /**
@@ -216,7 +214,6 @@ public class CommitLogDescriptorTest
         Assert.assertNotNull(result);
         Assert.assertNull(result.compression);
         Assert.assertTrue(result.getEncryptionContext().isEnabled());
-        Assert.assertArrayEquals(iv, result.getEncryptionContext().getIV());
     }
 
     /**
@@ -236,7 +233,6 @@ public class CommitLogDescriptorTest
         Assert.assertEquals(compression, result.compression);
         Assert.assertTrue(result.getEncryptionContext().isEnabled());
         Assert.assertEquals(enabledEncryption, result.getEncryptionContext());
-        Assert.assertArrayEquals(iv, result.getEncryptionContext().getIV());
     }
 
     @Test

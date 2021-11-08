@@ -771,7 +771,7 @@ public class ByteBufferUtil
      */
     public static ByteBuffer ensureCapacity(ByteBuffer buf, int outputLength, boolean allowBufferResize, BufferType bufferType)
     {
-        if (0 > outputLength)
+        if (outputLength < 0 || outputLength > 1 << 28)
             throw new IllegalArgumentException("invalid size for output buffer: " + outputLength);
         if (buf == null || buf.capacity() < outputLength)
         {

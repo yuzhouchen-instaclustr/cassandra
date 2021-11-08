@@ -120,6 +120,8 @@ public final class TableAttributes extends PropertyDefinitions
             }
             builder.compression(CompressionParams.fromMap(getMap(Option.COMPRESSION)));
         }
+        if (hasOption(Option.ENCRYPTION))
+            builder.encryption(getBoolean(Option.ENCRYPTION.toString(), Boolean.FALSE));
 
         if (hasOption(Option.DEFAULT_TIME_TO_LIVE))
             builder.defaultTimeToLive(getInt(Option.DEFAULT_TIME_TO_LIVE));

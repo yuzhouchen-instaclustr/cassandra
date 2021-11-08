@@ -143,7 +143,7 @@ public abstract class CommitLogStressTest
     {
         return Arrays.asList(new Object[][]{
         {null, EncryptionContextGenerator.createDisabledContext()}, // No compression, no encryption
-        {null, EncryptionContextGenerator.createContext(true)}, // Encryption
+        {null, EncryptionContextGenerator.createContext()}, // Encryption
         { new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
         { new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
         { new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});

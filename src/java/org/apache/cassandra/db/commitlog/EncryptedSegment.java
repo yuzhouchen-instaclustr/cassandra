@@ -17,22 +17,13 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Map;
-import javax.crypto.Cipher;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.compress.ICompressor;
-import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.security.EncryptionContext;
-import org.apache.cassandra.utils.Hex;
-
-import static org.apache.cassandra.security.EncryptionUtils.ENCRYPTED_BLOCK_HEADER_SIZE;
 
 /**
  * Writes encrypted segments to disk. Data is compressed before encrypting to (hopefully) reduce the size of the data into
@@ -57,33 +48,14 @@ import static org.apache.cassandra.security.EncryptionUtils.ENCRYPTED_BLOCK_HEAD
 public class EncryptedSegment extends FileDirectSegment
 {
     private static final Logger logger = LoggerFactory.getLogger(EncryptedSegment.class);
-
     private static final int ENCRYPTED_SECTION_HEADER_SIZE = SYNC_MARKER_SIZE + 4;
-
     private final EncryptionContext encryptionContext;
-    private final Cipher cipher;
 
     public EncryptedSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
     {
         super(commitLog, manager);
         this.encryptionContext = commitLog.configuration.getEncryptionContext();
-
-        try
-        {
-            cipher = encryptionContext.getEncryptor();
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, logFile);
-        }
         logger.debug("created a new encrypted commit log segment: {}", logFile);
-    }
-
-    protected Map<String, String> additionalHeaderParameters()
-    {
-        Map<String, String> map = encryptionContext.toHeaderParameters();
-        map.put(EncryptionContext.ENCRYPTION_IV, Hex.bytesToHex(cipher.getIV()));
-        return map;
     }
 
     ByteBuffer createBuffer(CommitLog commitLog)
@@ -100,13 +72,12 @@ public class EncryptedSegment extends FileDirectSegment
         // The length may be 0 when the segment is being closed.
         assert length > 0 || length == 0 && !isStillAllocating();
 
-        final ICompressor compressor = encryptionContext.getCompressor();
         final int blockSize = encryptionContext.getChunkLength();
         try
         {
             ByteBuffer inputBuffer = buffer.duplicate();
+            inputBuffer.clear();
             inputBuffer.limit(contentStart + length).position(contentStart);
-            ByteBuffer buffer = manager.getBufferPool().getThreadLocalReusableBuffer(DatabaseDescriptor.getCommitLogSegmentSize());
 
             // save space for the sync marker at the beginning of this section
             final long syncMarkerPosition = lastWrittenPos;
@@ -118,27 +89,21 @@ public class EncryptedSegment extends FileDirectSegment
                 int nextBlockSize = nextMarker - blockSize > contentStart ? blockSize : nextMarker - contentStart;
                 ByteBuffer slice = inputBuffer.duplicate();
                 slice.limit(contentStart + nextBlockSize).position(contentStart);
-
-                buffer = EncryptionUtils.compress(slice, buffer, true, compressor);
-
-                // reuse the same buffer for the input and output of the encryption operation
-                buffer = EncryptionUtils.encryptAndWrite(buffer, channel, true, cipher);
-
+                int writeCount = encryptionContext.encryptAndWrite(slice, channel);
                 contentStart += nextBlockSize;
-                manager.addSize(buffer.limit() + ENCRYPTED_BLOCK_HEADER_SIZE);
+                manager.addSize(writeCount);
             }
-
             lastWrittenPos = channel.position();
 
             // rewind to the beginning of the section and write out the sync marker
-            buffer.position(0).limit(ENCRYPTED_SECTION_HEADER_SIZE);
-            writeSyncMarker(id, buffer, 0, (int) syncMarkerPosition, (int) lastWrittenPos);
-            buffer.putInt(SYNC_MARKER_SIZE, length);
-            buffer.rewind();
-            manager.addSize(buffer.limit());
-
+            ByteBuffer writeBuffer = ByteBuffer.allocate(ENCRYPTED_SECTION_HEADER_SIZE);
+            writeSyncMarker(id, writeBuffer, 0, (int) syncMarkerPosition, (int) lastWrittenPos);
+            writeBuffer.putInt(SYNC_MARKER_SIZE, length);
+            writeBuffer.position(0).limit(ENCRYPTED_SECTION_HEADER_SIZE);
             channel.position(syncMarkerPosition);
-            channel.write(buffer);
+            channel.write(writeBuffer);
+
+            manager.addSize(ENCRYPTED_SECTION_HEADER_SIZE);
         }
         catch (Exception e)
         {

@@ -17,8 +17,7 @@
  */
 package org.apache.cassandra.hints;
 
-import java.util.Arrays;
-
+import java.io.IOException;
 import javax.crypto.Cipher;
 
 import com.google.common.collect.ImmutableMap;
@@ -32,12 +31,11 @@ import org.apache.cassandra.security.EncryptionContextGenerator;
 public class HintsEncryptionTest extends AlteredHints
 {
     EncryptionContext encryptionContext;
-    Cipher cipher;
 
     @Before
     public void setup()
     {
-        encryptionContext = EncryptionContextGenerator.createContext(true);
+        encryptionContext = EncryptionContextGenerator.createContext();
         DatabaseDescriptor.setEncryptionContext(encryptionContext);
     }
 
@@ -53,8 +51,6 @@ public class HintsEncryptionTest extends AlteredHints
             return false;
 
         EncryptedHintsWriter encryptedHintsWriter = (EncryptedHintsWriter)writer;
-        cipher = encryptedHintsWriter.getCipher();
-
         return encryptedHintsWriter.getCompressor().getClass().isAssignableFrom(encryptionContext.getCompressor().getClass());
     }
 
@@ -64,9 +60,15 @@ public class HintsEncryptionTest extends AlteredHints
             return false;
 
         EncryptedChecksummedDataInput encryptedDataInput = (EncryptedChecksummedDataInput)checksummedDataInput;
-
-        return Arrays.equals(cipher.getIV(), encryptedDataInput.getCipher().getIV()) &&
-               encryptedDataInput.getCompressor().getClass().isAssignableFrom(encryptionContext.getCompressor().getClass());
+         try
+        {
+            return encryptionContext.getEncryptor(false).getAlgorithm().equals(encryptedDataInput.getEncryptionContext().getEncryptor(false).getAlgorithm()) &&
+                   encryptionContext.getCompressor().getClass().isAssignableFrom(encryptionContext.getCompressor().getClass());
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     ImmutableMap<String, Object> params()

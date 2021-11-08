@@ -107,6 +107,7 @@ public final class SchemaKeyspace
               + "crc_check_chance double,"
               + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
               + "default_time_to_live int,"
+              + "encrypted boolean,"
               + "extensions frozen<map<text, blob>>,"
               + "flags frozen<set<text>>," // SUPER, COUNTER, DENSE, COMPOUND
               + "gc_grace_seconds int,"
@@ -174,6 +175,7 @@ public final class SchemaKeyspace
               + "crc_check_chance double,"
               + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
               + "default_time_to_live int,"
+              + "encrypted boolean,"
               + "extensions frozen<map<text, blob>>,"
               + "gc_grace_seconds int,"
               + "id uuid,"
@@ -533,6 +535,7 @@ public final class SchemaKeyspace
                .add("comment", params.comment)
                .add("dclocal_read_repair_chance", 0.0) // no longer used, left for drivers' sake
                .add("default_time_to_live", params.defaultTimeToLive)
+               .add("encrypted", params.encrypted)
                .add("gc_grace_seconds", params.gcGraceSeconds)
                .add("max_index_interval", params.maxIndexInterval)
                .add("memtable_flush_period_in_ms", params.memtableFlushPeriodInMs)
@@ -955,6 +958,7 @@ public final class SchemaKeyspace
                           .compaction(CompactionParams.fromMap(row.getFrozenTextMap("compaction")))
                           .compression(CompressionParams.fromMap(row.getFrozenTextMap("compression")))
                           .defaultTimeToLive(row.getInt("default_time_to_live"))
+                          .encryption(row.getBoolean("encrypted"))
                           .extensions(row.getFrozenMap("extensions", UTF8Type.instance, BytesType.instance))
                           .gcGraceSeconds(row.getInt("gc_grace_seconds"))
                           .maxIndexInterval(row.getInt("max_index_interval"))

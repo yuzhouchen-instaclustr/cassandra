@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileSegmentInputStream;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Each segment of an encrypted file may contain many encrypted chunks, and each chunk needs to be individually decrypted
@@ -77,7 +78,7 @@ public class EncryptedFileSegmentInputStream extends FileSegmentInputStream impl
     public void seek(long position)
     {
         long bufferPos = position - totalChunkOffset - segmentOffset;
-        while (buffer != null && bufferPos > buffer.capacity())
+        while (buffer != null && buffer != ByteBufferUtil.EMPTY_BYTE_BUFFER && bufferPos > buffer.capacity())
         {
             // rebuffer repeatedly until we have reached desired position
             buffer.position(buffer.limit());
