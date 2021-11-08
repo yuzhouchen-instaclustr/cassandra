@@ -351,6 +351,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return FBUtilities.json(getCompressionParameters());
     }
 
+    public void setEncryption(boolean encrypted)
+    {
+        metadata.getLocal().params.compression.setEncrypted(encrypted);
+    }
+
     public void setCompressionParameters(Map<String,String> opts)
     {
         try

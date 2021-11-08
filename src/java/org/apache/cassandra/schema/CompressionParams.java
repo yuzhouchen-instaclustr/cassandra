@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -93,7 +94,8 @@ public final class CompressionParams
     private final int maxCompressedLength;  // In content we store max length to avoid rounding errors causing compress/decompress mismatch.
     private final double minCompressRatio;  // In configuration we store min ratio, the input parameter.
     private final ImmutableMap<String, String> otherOptions; // Unrecognized options, can be used by the compressor
-
+    private boolean encrypted;
+    private ICompressor encryptedCompressor;
     // TODO: deprecated, should now be carefully removed. Doesn't affect schema code as it isn't included in equals() and hashCode()
     private volatile double crcCheckChance = 1.0;
 
@@ -134,7 +136,7 @@ public final class CompressionParams
 
     public static CompressionParams noCompression()
     {
-        return new CompressionParams((ICompressor) null, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, 0.0, Collections.emptyMap());
+        return new CompressionParams(null, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, 0.0, Collections.emptyMap());
     }
 
     // The shorthand methods below are only used for tests. They are a little inconsistent in their choice of
@@ -199,6 +201,17 @@ public final class CompressionParams
         return new CompressionParams(compressor, chunkLength, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, Collections.emptyMap());
     }
 
+    public static CompressionParams encryptingCompressor(Map options)
+    {
+        return encryptingCompressor(DEFAULT_CHUNK_LENGTH, options);
+    }
+
+    public static CompressionParams encryptingCompressor(Integer chunkLength,Map compressionOptions)
+    {
+        EncryptingCompressor compressor = EncryptingCompressor.create(compressionOptions);
+        return new CompressionParams(compressor, chunkLength, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, compressionOptions);
+    }
+
     @VisibleForTesting
     public static CompressionParams noop()
     {
@@ -250,6 +263,16 @@ public final class CompressionParams
     {
         return sstableCompressor != null;
     }
+   
+    public void setEncrypted(boolean encrypted)
+    {
+        this.encrypted = encrypted;
+    }
+
+    public boolean isEncrypted()
+    {
+        return encrypted;
+    }
 
     /**
      * Returns the SSTable compressor.
@@ -257,7 +280,11 @@ public final class CompressionParams
      */
     public ICompressor getSstableCompressor()
     {
-        return sstableCompressor;
+        if (!encrypted)
+            return sstableCompressor;
+        if (encryptedCompressor == null)
+            encryptedCompressor = new EncryptingCompressor(this, sstableCompressor, DatabaseDescriptor.getEncryptionContext());
+        return encryptedCompressor;
     }
 
     public ImmutableMap<String, String> getOtherOptions()
@@ -598,6 +625,7 @@ public final class CompressionParams
             .append(chunkLength)
             .append(otherOptions)
             .append(minCompressRatio)
+            .append(encrypted)
             .toHashCode();
     }
 
@@ -618,6 +646,7 @@ public final class CompressionParams
             else
                 if (parameters.maxCompressedLength != Integer.MAX_VALUE)
                     throw new UnsupportedOperationException("Cannot stream SSTables with uncompressed chunks to pre-4.0 nodes.");
+            out.writeBoolean(parameters.encrypted);
         }
 
         public CompressionParams deserialize(DataInputPlus in, int version) throws IOException
@@ -635,11 +664,12 @@ public final class CompressionParams
             int minCompressRatio = Integer.MAX_VALUE;   // Earlier Cassandra cannot use uncompressed chunks.
             if (version >= MessagingService.VERSION_40)
                 minCompressRatio = in.readInt();
-
+          
             CompressionParams parameters;
             try
             {
                 parameters = new CompressionParams(compressorName, chunkLength, minCompressRatio, options);
+                parameters.setEncrypted(in.readBoolean());
             }
             catch (ConfigurationException e)
             {
@@ -660,6 +690,7 @@ public final class CompressionParams
             size += TypeSizes.sizeof(parameters.chunkLength());
             if (version >= MessagingService.VERSION_40)
                 size += TypeSizes.sizeof(parameters.maxCompressedLength());
+            size += TypeSizes.sizeof(parameters.encrypted);
             return size;
         }
     }

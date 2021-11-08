@@ -47,6 +47,7 @@ public final class TableParams
         COMPACTION,
         COMPRESSION,
         DEFAULT_TIME_TO_LIVE,
+        ENCRYPTION,
         EXTENSIONS,
         GC_GRACE_SECONDS,
         MAX_INDEX_INTERVAL,
@@ -81,6 +82,7 @@ public final class TableParams
     public final ImmutableMap<String, ByteBuffer> extensions;
     public final boolean cdc;
     public final ReadRepairStrategy readRepair;
+    public boolean encrypted;
 
     private TableParams(Builder builder)
     {
@@ -99,6 +101,8 @@ public final class TableParams
         caching = builder.caching;
         compaction = builder.compaction;
         compression = builder.compression;
+        encrypted = builder.encrypted;
+        compression.setEncrypted(builder.encrypted);
         extensions = builder.extensions;
         cdc = builder.cdc;
         readRepair = builder.readRepair;
@@ -118,6 +122,7 @@ public final class TableParams
                             .compression(params.compression)
                             .crcCheckChance(params.crcCheckChance)
                             .defaultTimeToLive(params.defaultTimeToLive)
+                            .encryption(params.encrypted)
                             .gcGraceSeconds(params.gcGraceSeconds)
                             .maxIndexInterval(params.maxIndexInterval)
                             .memtableFlushPeriodInMs(params.memtableFlushPeriodInMs)
@@ -208,6 +213,7 @@ public final class TableParams
             && caching.equals(p.caching)
             && compaction.equals(p.compaction)
             && compression.equals(p.compression)
+            && encrypted == p.encrypted
             && extensions.equals(p.extensions)
             && cdc == p.cdc
             && readRepair == p.readRepair;
@@ -228,6 +234,7 @@ public final class TableParams
                                 caching,
                                 compaction,
                                 compression,
+                                encrypted,
                                 extensions,
                                 cdc,
                                 readRepair);
@@ -249,6 +256,7 @@ public final class TableParams
                           .add(Option.CACHING.toString(), caching)
                           .add(Option.COMPACTION.toString(), compaction)
                           .add(Option.COMPRESSION.toString(), compression)
+                          .add(Option.ENCRYPTION.toString(), encrypted)
                           .add(Option.EXTENSIONS.toString(), extensions)
                           .add(Option.CDC.toString(), cdc)
                           .add(Option.READ_REPAIR.toString(), readRepair)
@@ -271,6 +279,8 @@ public final class TableParams
                .append("AND compaction = ").append(compaction.asMap())
                .newLine()
                .append("AND compression = ").append(compression.asMap())
+               .newLine()
+               .append("AND encryption = ").append(encrypted)
                .newLine()
                .append("AND crc_check_chance = ").append(crcCheckChance)
                .newLine()
@@ -314,6 +324,7 @@ public final class TableParams
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
+        private boolean encrypted;
 
         public Builder()
         {
@@ -411,6 +422,12 @@ public final class TableParams
         public Builder readRepair(ReadRepairStrategy val)
         {
             readRepair = val;
+            return this;
+        }
+
+        public Builder encryption(boolean enabled)
+        {
+            encrypted = enabled;
             return this;
         }
 

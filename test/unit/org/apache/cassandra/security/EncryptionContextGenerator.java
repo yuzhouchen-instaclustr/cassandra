@@ -25,20 +25,18 @@ import java.util.Map;
 
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
+import org.apache.cassandra.io.compress.ICompressor;
+import org.apache.cassandra.utils.Pair;
 
 public class EncryptionContextGenerator
 {
     public static final String KEY_ALIAS_1 = "testing:1";
     public static final String KEY_ALIAS_2 = "testing:2";
 
-    public static EncryptionContext createContext(boolean init)
+     public static EncryptionContext createContext()
     {
-        return createContext(null, init);
-    }
-
-    public static EncryptionContext createContext(byte[] iv, boolean init)
-    {
-        return new EncryptionContext(createEncryptionOptions(), iv, init);
+        Pair<ParameterizedClass, ICompressor> compressor = EncryptionContext.defaultCompressor();
+        return new EncryptionContext(createEncryptionOptions(), compressor.left, compressor.right);
     }
 
     public static TransparentDataEncryptionOptions createEncryptionOptions()
@@ -49,7 +47,7 @@ public class EncryptionContextGenerator
         params.put("store_type", "JCEKS");
         ParameterizedClass keyProvider = new ParameterizedClass(JKSKeyProvider.class.getName(), params);
 
-        return new TransparentDataEncryptionOptions("AES/CBC/PKCS5Padding", KEY_ALIAS_1, keyProvider);
+        return new TransparentDataEncryptionOptions("AES/GCM/NoPadding", KEY_ALIAS_1, keyProvider);
     }
 
     public static EncryptionContext createDisabledContext()
