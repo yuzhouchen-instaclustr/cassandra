@@ -24,6 +24,7 @@ import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.concurrent.CompletionException;
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
@@ -39,8 +40,6 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
 
 /**
@@ -80,9 +79,7 @@ public class CipherFactory
      * Note: we don't perform reads and writes on the same thread, so we won't have to worry about decrypting versus
      * encrypting ciphers being on the same {@link ThreadLocal}.
      */
-    // TODO maybe use a Map<CachedCipher> in case there are multiple, active keys (think of key rotation); else,
-    // we'll be thrashing Cipher instances swapping between the various keys/ciphers.
-    private static final ThreadLocal<CachedCipher> cachedCiphers = new ThreadLocal<>();
+    private static final ThreadLocal<CachedCipher> cipherThreadLocal = new ThreadLocal<>();
 
     /**
      * A cache of loaded {@link Key} instances. The cache size is expected to be almost always 1,
@@ -99,7 +96,6 @@ public class CipherFactory
 
         try
         {
-            //    secureRandom = SecureRandom.getInstance("SHA1PRNG");
             Class<KeyProvider> keyProviderClass = (Class<KeyProvider>) Class.forName(options.key_provider.class_name);
             Constructor ctor = keyProviderClass.getConstructor(TransparentDataEncryptionOptions.class);
             keyProvider = (KeyProvider) ctor.newInstance(options);
@@ -113,7 +109,6 @@ public class CipherFactory
                         .executor(MoreExecutors.directExecutor())
                         .removalListener((key, value, cause) ->
                                          {
-                                             // maybe reload the key? (to avoid the reload being on the user's dime)
                                              logger.info("key {} removed from cipher key cache", key);
                                          })
                         .build(alias ->
@@ -122,7 +117,6 @@ public class CipherFactory
                                    return keyProvider.getSecretKey(alias);
                                });
     }
-
 
     public static CipherFactory instance(TransparentDataEncryptionOptions options)
     {
@@ -146,7 +140,7 @@ public class CipherFactory
      */
     Cipher getEncryptor(String transformation, String keyAlias, boolean reinitialize) throws IOException
     {
-        CachedCipher cachedCipher = cachedCiphers.get();
+        CachedCipher cachedCipher = cipherThreadLocal.get();
         if (cachedCipher != null)
         {
             boolean differingCipherModes = cachedCipher.mode != Cipher.ENCRYPT_MODE;
@@ -159,7 +153,6 @@ public class CipherFactory
         }
 
         Cipher cipher = buildCipher(transformation, keyAlias, generateIv(secureRandom, ivLength), Cipher.ENCRYPT_MODE);
-        cachedCiphers.set(new CachedCipher(Cipher.ENCRYPT_MODE, keyAlias, cipher));
         return cipher;
     }
 
@@ -175,7 +168,7 @@ public class CipherFactory
      */
     Cipher getDecryptor(String transformation, String keyAlias, @Nullable byte[] iv) throws IOException
     {
-        CachedCipher cachedCipher = cachedCiphers.get();
+        CachedCipher cachedCipher = cipherThreadLocal.get();
         if (cachedCipher != null)
         {
             boolean differingCipherModes = cachedCipher.mode != Cipher.DECRYPT_MODE;
@@ -185,9 +178,7 @@ public class CipherFactory
             reinitDecryptor(cachedCipher.cipher, keyAlias, iv);
             return cachedCipher.cipher;
         }
-
         Cipher cipher = buildCipher(transformation, keyAlias, iv, Cipher.DECRYPT_MODE);
-        cachedCiphers.set(new CachedCipher(Cipher.DECRYPT_MODE, keyAlias, cipher));
         return cipher;
     }
 
@@ -217,18 +208,25 @@ public class CipherFactory
     @VisibleForTesting
     Cipher buildCipher(String transformation, String keyAlias, byte[] iv, int cipherMode) throws IOException
     {
+        CachedCipher cachedCipher = cipherThreadLocal.get();
+        if (cachedCipher != null)
+        {
+            Cipher cipher = cachedCipher.cipher;
+            // rigorous checks to make sure we've absolutely got the correct instance (with correct alg/key/iv/...)
+            if (cachedCipher.mode == cipherMode && cipher.getAlgorithm().equals(transformation)
+                && cachedCipher.keyAlias.equals(keyAlias) && Arrays.equals(cipher.getIV(), iv))
+                return cipher;
+        }
         try
         {
             Key key = retrieveKey(keyAlias);
             Cipher cipher = Cipher.getInstance(transformation);
             int GCM_TAG_LENGTH = 16;
-            if (iv != null)
-                cipher.init(cipherMode, key, new GCMParameterSpec(GCM_TAG_LENGTH * 8, iv));
-            else
-                cipher.init(cipherMode, key);
+            cipher.init(cipherMode, key, new GCMParameterSpec(GCM_TAG_LENGTH * 8, iv));
+            cipherThreadLocal.set(new CachedCipher(cipherMode, keyAlias, cipher));
             return cipher;
         }
-        catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException | InvalidKeyException e)
+        catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException | InvalidKeyException | IllegalArgumentException e)
         {
             logger.error("could not build cipher", e);
             throw new IOException("cannot load cipher", e);
@@ -266,7 +264,7 @@ public class CipherFactory
         try
         {
             // create an IV, if necessary
-            if (iv == null)
+            if (iv == null && cipherMode == Cipher.ENCRYPT_MODE)
                 iv = generateIv(secureRandom, ivLength);
 
             int GCM_TAG_LENGTH = 16;
@@ -287,7 +285,6 @@ public class CipherFactory
      */
     void reinitDecryptor(Cipher cipher, String keyAlias, byte[] iv) throws IOException
     {
-        Preconditions.checkNotNull(iv, "initialization vector must not be null");
         reinit(cipher, Cipher.DECRYPT_MODE, keyAlias, iv);
     }
 
