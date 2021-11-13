@@ -131,11 +131,6 @@ public class EncryptionContext
         return cipherFactory.getDecryptor(tdeOptions.cipher, tdeOptions.key_alias, iv);
     }
 
-    public Cipher getEncryptor() throws IOException
-    {
-        return cipherFactory.getEncryptor(tdeOptions.cipher, tdeOptions.key_alias);
-    }
-
     public boolean isEnabled()
     {
         return tdeOptions.enabled;
@@ -165,7 +160,6 @@ public class EncryptionContext
     public Map<String, String> toHeaderParameters()
     {
         Map<String, String> map = new HashMap<>();
-        // add compression options, someday ...
         if (tdeOptions.enabled)
         {
             map.put(ENCRYPTION_CIPHER, tdeOptions.cipher);
@@ -216,19 +210,22 @@ public class EncryptionContext
         if (parameters == null || parameters.isEmpty())
             return new EncryptionContext(new TransparentDataEncryptionOptions(false));
 
-        Map<String, String> params = new HashMap<>();
-        params.putAll((Map<String, String>) parameters);
-        String keyAlias = params.remove(ENCRYPTION_KEY_ALIAS);
-        String cipher = params.remove(ENCRYPTION_CIPHER);
+        Map<?, ?> params = new HashMap<>();
+        String keyAlias = (String) parameters.get(ENCRYPTION_KEY_ALIAS);
+        String cipher = (String) parameters.get(ENCRYPTION_CIPHER);
         if (keyAlias == null || cipher == null)
             return new EncryptionContext(new TransparentDataEncryptionOptions(false));
 
         TransparentDataEncryptionOptions tdeOptions = new TransparentDataEncryptionOptions(cipher, keyAlias, encryptionContext.getTransparentDataEncryptionOptions().key_provider);
-        String compressionClassName = params.remove(COMPRESSION_CLASS_NAME);
+        String compressionClassName = (String) parameters.get(COMPRESSION_CLASS_NAME);
+        Map<String, String> cparams = null;
+        if (params.containsKey(COMPRESSION_PARAMETERS_KEY))
+            cparams=  (Map<String, String>)params.get(COMPRESSION_PARAMETERS_KEY);
+
         ParameterizedClass compressor = null;
 
         if (compressionClassName != null)
-            compressor = new ParameterizedClass(compressionClassName, params);
+            compressor = new ParameterizedClass(compressionClassName, cparams);
 
         return create(tdeOptions, compressor);
     }
@@ -598,6 +595,11 @@ public class EncryptionContext
         public void close()
         {
             // nop
+        }
+
+        public void setPosition(long sourcePosition)
+        {
+            this.currentPosition = sourcePosition;
         }
     }
 }

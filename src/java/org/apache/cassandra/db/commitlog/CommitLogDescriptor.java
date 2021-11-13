@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
@@ -126,7 +125,8 @@ public class CommitLogDescriptor
 
         if (compression != null)
         {
-            params.put(COMPRESSION_PARAMETERS_KEY, compression.parameters);
+            if(compression.parameters != null)
+                params.put(COMPRESSION_PARAMETERS_KEY, compression.parameters);
             params.put(COMPRESSION_CLASS_KEY, compression.class_name);
         }
 
@@ -191,7 +191,7 @@ public class CommitLogDescriptor
         if (className == null)
             return null;
 
-        Map<String, String> cparams = new HashMap<>();
+        Map<String, String> cparams = null;
         if (params.containsKey(COMPRESSION_PARAMETERS_KEY))
             cparams= (Map<String, String>) params.get(COMPRESSION_PARAMETERS_KEY);
 

@@ -1,0 +1,220 @@
+diff --git a/src/java/org/apache/cassandra/db/commitlog/CommitLogDescriptor.java b/src/java/org/apache/cassandra/db/commitlog/CommitLogDescriptor.java
+index 1eb22cf..38c0f10 100644
+--- a/src/java/org/apache/cassandra/db/commitlog/CommitLogDescriptor.java
++++ b/src/java/org/apache/cassandra/db/commitlog/CommitLogDescriptor.java
+@@ -26,7 +26,6 @@ import java.io.IOException;
+ import java.nio.ByteBuffer;
+ import java.nio.charset.StandardCharsets;
+ import java.util.Collections;
+-import java.util.HashMap;
+ import java.util.Map;
+ import java.util.TreeMap;
+ import java.util.regex.Matcher;
+@@ -126,7 +125,8 @@ public class CommitLogDescriptor
+ 
+         if (compression != null)
+         {
+-            params.put(COMPRESSION_PARAMETERS_KEY, compression.parameters);
++            if(compression.parameters != null)
++                params.put(COMPRESSION_PARAMETERS_KEY, compression.parameters);
+             params.put(COMPRESSION_CLASS_KEY, compression.class_name);
+         }
+ 
+@@ -191,7 +191,7 @@ public class CommitLogDescriptor
+         if (className == null)
+             return null;
+ 
+-        Map<String, String> cparams = new HashMap<>();
++        Map<String, String> cparams = null;
+         if (params.containsKey(COMPRESSION_PARAMETERS_KEY))
+             cparams= (Map<String, String>) params.get(COMPRESSION_PARAMETERS_KEY);
+ 
+diff --git a/src/java/org/apache/cassandra/hints/EncryptedChecksummedDataInput.java b/src/java/org/apache/cassandra/hints/EncryptedChecksummedDataInput.java
+index bcb9b26..e4067cc 100644
+--- a/src/java/org/apache/cassandra/hints/EncryptedChecksummedDataInput.java
++++ b/src/java/org/apache/cassandra/hints/EncryptedChecksummedDataInput.java
+@@ -56,9 +56,52 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
+         return sourcePosition;
+     }
+ 
++    static class Position extends ChecksummedDataInput.Position
++    {
++        final long bufferStart;
++        final int bufferPosition;
++
++        public Position(long sourcePosition, long bufferStart, int bufferPosition)
++        {
++            super(sourcePosition);
++            this.bufferStart = bufferStart;
++            this.bufferPosition = bufferPosition;
++        }
++
++        @Override
++        public long subtract(InputPosition o)
++        {
++            Position other = (Position) o;
++            return bufferStart - other.bufferStart + bufferPosition - other.bufferPosition;
++        }
++    }
++
++    public InputPosition getSeekPosition()
++    {
++        return new Position(sourcePosition, bufferOffset, buffer.position());
++    }
++
++    public void seek(InputPosition p)
++    {
++        Position pos = (Position) p;
++        bufferOffset = pos.bufferStart;
++        readChannel.setPosition(pos.sourcePosition);
++        buffer.position(0).limit(0);
++        resetCrc();
++        reBuffer();
++        buffer.position(pos.bufferPosition);
++        assert sourcePosition == pos.sourcePosition;
++        assert bufferOffset == pos.bufferStart;
++        assert buffer.position() == pos.bufferPosition;
++    }
++
+     @Override
+     protected void readBuffer()
+     {
++        this.sourcePosition = readChannel.getCurrentPosition();
++        if (isEOF())
++            return;
++
+         try
+         {
+             buffer = encryptionContext.decrypt(readChannel, buffer, true);
+diff --git a/src/java/org/apache/cassandra/security/EncryptionContext.java b/src/java/org/apache/cassandra/security/EncryptionContext.java
+index e27d190..bda3874 100644
+--- a/src/java/org/apache/cassandra/security/EncryptionContext.java
++++ b/src/java/org/apache/cassandra/security/EncryptionContext.java
+@@ -131,11 +131,6 @@ public class EncryptionContext
+         return cipherFactory.getDecryptor(tdeOptions.cipher, tdeOptions.key_alias, iv);
+     }
+ 
+-    public Cipher getEncryptor() throws IOException
+-    {
+-        return cipherFactory.getEncryptor(tdeOptions.cipher, tdeOptions.key_alias);
+-    }
+-
+     public boolean isEnabled()
+     {
+         return tdeOptions.enabled;
+@@ -165,7 +160,6 @@ public class EncryptionContext
+     public Map<String, String> toHeaderParameters()
+     {
+         Map<String, String> map = new HashMap<>();
+-        // add compression options, someday ...
+         if (tdeOptions.enabled)
+         {
+             map.put(ENCRYPTION_CIPHER, tdeOptions.cipher);
+@@ -216,19 +210,22 @@ public class EncryptionContext
+         if (parameters == null || parameters.isEmpty())
+             return new EncryptionContext(new TransparentDataEncryptionOptions(false));
+ 
+-        Map<String, String> params = new HashMap<>();
+-        params.putAll((Map<String, String>) parameters);
+-        String keyAlias = params.remove(ENCRYPTION_KEY_ALIAS);
+-        String cipher = params.remove(ENCRYPTION_CIPHER);
++        Map<?, ?> params = new HashMap<>();
++        String keyAlias = (String) parameters.get(ENCRYPTION_KEY_ALIAS);
++        String cipher = (String) parameters.get(ENCRYPTION_CIPHER);
+         if (keyAlias == null || cipher == null)
+             return new EncryptionContext(new TransparentDataEncryptionOptions(false));
+ 
+         TransparentDataEncryptionOptions tdeOptions = new TransparentDataEncryptionOptions(cipher, keyAlias, encryptionContext.getTransparentDataEncryptionOptions().key_provider);
+-        String compressionClassName = params.remove(COMPRESSION_CLASS_NAME);
++        String compressionClassName = (String) parameters.get(COMPRESSION_CLASS_NAME);
++        Map<String, String> cparams = null;
++        if (params.containsKey(COMPRESSION_PARAMETERS_KEY))
++            cparams=  (Map<String, String>)params.get(COMPRESSION_PARAMETERS_KEY);
++
+         ParameterizedClass compressor = null;
+ 
+         if (compressionClassName != null)
+-            compressor = new ParameterizedClass(compressionClassName, params);
++            compressor = new ParameterizedClass(compressionClassName, cparams);
+ 
+         return create(tdeOptions, compressor);
+     }
+@@ -599,5 +596,10 @@ public class EncryptionContext
+         {
+             // nop
+         }
++
++        public void setPosition(long sourcePosition)
++        {
++            this.currentPosition = sourcePosition;
++        }
+     }
+ }
+diff --git a/test/unit/org/apache/cassandra/db/commitlog/CommitLogDescriptorTest.java b/test/unit/org/apache/cassandra/db/commitlog/CommitLogDescriptorTest.java
+index ef061c3..43c0396 100644
+--- a/test/unit/org/apache/cassandra/db/commitlog/CommitLogDescriptorTest.java
++++ b/test/unit/org/apache/cassandra/db/commitlog/CommitLogDescriptorTest.java
+@@ -20,7 +20,6 @@ package org.apache.cassandra.db.commitlog;
+ 
+ import java.io.IOException;
+ import java.nio.ByteBuffer;
+-import java.util.Collections;
+ import java.util.HashMap;
+ import java.util.Map;
+ 
+@@ -196,7 +195,6 @@ public class CommitLogDescriptorTest
+         Assert.assertNotNull(result);
+         Assert.assertNull(result.compression);
+         Assert.assertTrue(result.getEncryptionContext().isEnabled());
+-        //Assert.assertArrayEquals(iv, result.getEncryptionContext().getIV());
+     }
+ 
+     /**
+@@ -214,7 +212,6 @@ public class CommitLogDescriptorTest
+         Assert.assertNotNull(result);
+         Assert.assertNull(result.compression);
+         Assert.assertTrue(result.getEncryptionContext().isEnabled());
+-        //Assert.assertArrayEquals(iv, result.getEncryptionContext().getIV());
+     }
+ 
+     /**
+diff --git a/test/unit/org/apache/cassandra/hints/HintsEncryptionTest.java b/test/unit/org/apache/cassandra/hints/HintsEncryptionTest.java
+index f4b76a9..4455490 100644
+--- a/test/unit/org/apache/cassandra/hints/HintsEncryptionTest.java
++++ b/test/unit/org/apache/cassandra/hints/HintsEncryptionTest.java
+@@ -18,8 +18,6 @@
+ package org.apache.cassandra.hints;
+ 
+ import java.io.IOException;
+-import java.util.Arrays;
+-
+ import javax.crypto.Cipher;
+ 
+ import com.google.common.collect.ImmutableMap;
+@@ -33,7 +31,6 @@ import org.apache.cassandra.security.EncryptionContextGenerator;
+ public class HintsEncryptionTest extends AlteredHints
+ {
+     EncryptionContext encryptionContext;
+-    Cipher cipher;
+ 
+     @Before
+     public void setup()
+@@ -54,8 +51,6 @@ public class HintsEncryptionTest extends AlteredHints
+             return false;
+ 
+         EncryptedHintsWriter encryptedHintsWriter = (EncryptedHintsWriter)writer;
+-       // cipher = encryptedHintsWriter.getCipher();
+-
+         return encryptedHintsWriter.getCompressor().getClass().isAssignableFrom(encryptionContext.getCompressor().getClass());
+     }
+ 
+@@ -74,9 +69,6 @@ public class HintsEncryptionTest extends AlteredHints
+         {
+             throw new RuntimeException(e);
+         }
+-
+-//        return Arrays.equals(cipher.getIV(), encryptedDataInput.getCipher().getIV()) &&
+-  //             encryptedDataInput.getCompressor().getClass().isAssignableFrom(encryptionContext.getCompressor().getClass());
+     }
+ 
+     ImmutableMap<String, Object> params()

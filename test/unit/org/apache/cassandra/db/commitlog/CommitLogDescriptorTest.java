@@ -20,7 +20,6 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -196,7 +195,6 @@ public class CommitLogDescriptorTest
         Assert.assertNotNull(result);
         Assert.assertNull(result.compression);
         Assert.assertTrue(result.getEncryptionContext().isEnabled());
-        //Assert.assertArrayEquals(iv, result.getEncryptionContext().getIV());
     }
 
     /**
@@ -214,7 +212,6 @@ public class CommitLogDescriptorTest
         Assert.assertNotNull(result);
         Assert.assertNull(result.compression);
         Assert.assertTrue(result.getEncryptionContext().isEnabled());
-        //Assert.assertArrayEquals(iv, result.getEncryptionContext().getIV());
     }
 
     /**

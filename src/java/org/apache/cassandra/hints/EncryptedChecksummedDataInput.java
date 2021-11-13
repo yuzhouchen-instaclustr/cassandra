@@ -56,9 +56,52 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         return sourcePosition;
     }
 
+    static class Position extends ChecksummedDataInput.Position
+    {
+        final long bufferStart;
+        final int bufferPosition;
+
+        public Position(long sourcePosition, long bufferStart, int bufferPosition)
+        {
+            super(sourcePosition);
+            this.bufferStart = bufferStart;
+            this.bufferPosition = bufferPosition;
+        }
+
+        @Override
+        public long subtract(InputPosition o)
+        {
+            Position other = (Position) o;
+            return bufferStart - other.bufferStart + bufferPosition - other.bufferPosition;
+        }
+    }
+
+    public InputPosition getSeekPosition()
+    {
+        return new Position(sourcePosition, bufferOffset, buffer.position());
+    }
+
+    public void seek(InputPosition p)
+    {
+        Position pos = (Position) p;
+        bufferOffset = pos.bufferStart;
+        readChannel.setPosition(pos.sourcePosition);
+        buffer.position(0).limit(0);
+        resetCrc();
+        reBuffer();
+        buffer.position(pos.bufferPosition);
+        assert sourcePosition == pos.sourcePosition;
+        assert bufferOffset == pos.bufferStart;
+        assert buffer.position() == pos.bufferPosition;
+    }
+
     @Override
     protected void readBuffer()
     {
+        this.sourcePosition = readChannel.getCurrentPosition();
+        if (isEOF())
+            return;
+
         try
         {
             buffer = encryptionContext.decrypt(readChannel, buffer, true);

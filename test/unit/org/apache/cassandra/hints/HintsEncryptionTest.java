@@ -18,8 +18,6 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
-import java.util.Arrays;
-
 import javax.crypto.Cipher;
 
 import com.google.common.collect.ImmutableMap;
@@ -33,7 +31,6 @@ import org.apache.cassandra.security.EncryptionContextGenerator;
 public class HintsEncryptionTest extends AlteredHints
 {
     EncryptionContext encryptionContext;
-    Cipher cipher;
 
     @Before
     public void setup()
@@ -54,8 +51,6 @@ public class HintsEncryptionTest extends AlteredHints
             return false;
 
         EncryptedHintsWriter encryptedHintsWriter = (EncryptedHintsWriter)writer;
-       // cipher = encryptedHintsWriter.getCipher();
-
         return encryptedHintsWriter.getCompressor().getClass().isAssignableFrom(encryptionContext.getCompressor().getClass());
     }
 
@@ -74,9 +69,6 @@ public class HintsEncryptionTest extends AlteredHints
         {
             throw new RuntimeException(e);
         }
-
-//        return Arrays.equals(cipher.getIV(), encryptedDataInput.getCipher().getIV()) &&
-  //             encryptedDataInput.getCompressor().getClass().isAssignableFrom(encryptionContext.getCompressor().getClass());
     }
 
     ImmutableMap<String, Object> params()
