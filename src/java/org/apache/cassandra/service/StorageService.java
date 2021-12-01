@@ -1007,6 +1007,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             gossipSnitchInfo();
             // gossip Schema.emptyVersion forcing immediate check for schema updates (see MigrationManager#maybeScheduleSchemaPull)
             Schema.instance.updateVersionAndAnnounce(); // Ensure we know our own actual Schema UUID in preparation for updates
+            HeartbeatService.instance.start();
             LoadBroadcaster.instance.startBroadcasting();
             HintsService.instance.startDispatch();
             BatchlogManager.instance.start();
@@ -5088,6 +5089,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         try
         {
+            HeartbeatService.instance.stop();
+
             setMode(Mode.DRAINING, "starting drain process", !isFinalShutdown);
 
             try

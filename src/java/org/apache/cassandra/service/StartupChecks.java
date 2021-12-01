@@ -23,6 +23,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -33,6 +34,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.StringUtils;
 
+
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.io.util.File;
 
 import org.slf4j.Logger;
@@ -54,11 +58,14 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.SigarLibrary;
 
+import static java.util.stream.Collectors.toSet;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
@@ -85,6 +92,14 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
  */
 public class StartupChecks
 {
+    public enum StartupCheckType
+    {
+        // non-configurable check is always enabled for execution
+        NON_CONFIGURABLE_CHECK,
+        FILESYSTEM_OWNERSHIP_CHECK,
+        GC_GRACE_PERIOD_CHECK
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(StartupChecks.class);
     // List of checks to run before starting up. If any test reports failure, startup will be halted.
     private final List<StartupCheck> preFlightChecks = new ArrayList<>();
@@ -107,7 +122,8 @@ public class StartupChecks
                                                                       checkSystemKeyspaceState,
                                                                       checkDatacenter,
                                                                       checkRack,
-                                                                      checkLegacyAuthTables);
+                                                                      checkLegacyAuthTables,
+                                                                      checkGcGraceSecondsOnStartup);
 
     public StartupChecks withDefaultTests()
     {
@@ -129,18 +145,23 @@ public class StartupChecks
      * Run the configured tests and return a report detailing the results.
      * @throws org.apache.cassandra.exceptions.StartupException if any test determines that the
      * system is not in an valid state to startup
+     * @param options options to pass to respective checks for their configration
      */
-    public void verify() throws StartupException
+    public void verify(StartupChecksOptions options) throws StartupException
     {
         for (StartupCheck test : preFlightChecks)
-            test.execute();
+            test.execute(options);
     }
 
     public static final StartupCheck checkJemalloc = new StartupCheck()
     {
-        public void execute()
+        @Override
+        public void execute(StartupChecksOptions options)
         {
-            String jemalloc = System.getProperty("cassandra.libjemalloc");
+            if (options.isDisabled(getStartupCheckType()))
+                return;
+
+            String jemalloc = CassandraRelevantProperties.LIBJEMALLOC.getString();
             if (jemalloc == null)
                 logger.warn("jemalloc shared library could not be preloaded to speed up memory allocations");
             else if ("-".equals(jemalloc))
@@ -150,14 +171,21 @@ public class StartupChecks
         }
     };
 
-    public static final StartupCheck checkLz4Native = () -> {
-        try
+    public static final StartupCheck checkLz4Native = new StartupCheck()
+    {
+        @Override
+        public void execute(StartupChecksOptions options)
         {
-            LZ4Factory.nativeInstance(); // make sure native loads
-        }
-        catch (AssertionError | LinkageError e)
-        {
-            logger.warn("lz4-java was unable to load native libraries; this will lower the performance of lz4 (network/sstables/etc.): {}", Throwables.getRootCause(e).getMessage());
+            if (options.isDisabled(getStartupCheckType()))
+                return;
+            try
+            {
+                LZ4Factory.nativeInstance(); // make sure native loads
+            }
+            catch (AssertionError | LinkageError e)
+            {
+                logger.warn("lz4-java was unable to load native libraries; this will lower the performance of lz4 (network/sstables/etc.): {}", Throwables.getRootCause(e).getMessage());
+            }
         }
     };
 
@@ -169,8 +197,12 @@ public class StartupChecks
          * We use this to ensure the system clock is at least somewhat correct at startup.
          */
         private static final long EARLIEST_LAUNCH_DATE = 1215820800000L;
-        public void execute() throws StartupException
+
+        @Override
+        public void execute(StartupChecksOptions options) throws StartupException
         {
+            if (options.isDisabled(getStartupCheckType()))
+                return;
             long now = currentTimeMillis();
             if (now < EARLIEST_LAUNCH_DATE)
                 throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE,
@@ -181,13 +213,16 @@ public class StartupChecks
 
     public static final StartupCheck checkJMXPorts = new StartupCheck()
     {
-        public void execute()
+        @Override
+        public void execute(StartupChecksOptions options)
         {
-            String jmxPort = System.getProperty("cassandra.jmx.remote.port");
+            if (options.isDisabled(getStartupCheckType()))
+                return;
+            String jmxPort = CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT.getString();
             if (jmxPort == null)
             {
                 logger.warn("JMX is not enabled to receive remote connections. Please see cassandra-env.sh for more info.");
-                jmxPort = System.getProperty("cassandra.jmx.local.port");
+                jmxPort = CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT.toString();
                 if (jmxPort == null)
                     logger.error("cassandra.jmx.local.port missing from cassandra-env.sh, unable to start local JMX service.");
             }
@@ -200,8 +235,11 @@ public class StartupChecks
 
     public static final StartupCheck checkJMXProperties = new StartupCheck()
     {
-        public void execute()
+        @Override
+        public void execute(StartupChecksOptions options)
         {
+            if (options.isDisabled(getStartupCheckType()))
+                return;
             if (COM_SUN_MANAGEMENT_JMXREMOTE_PORT.isPresent())
             {
                 logger.warn("Use of com.sun.management.jmxremote.port at startup is deprecated. " +
@@ -212,8 +250,11 @@ public class StartupChecks
 
     public static final StartupCheck inspectJvmOptions = new StartupCheck()
     {
-        public void execute()
+        @Override
+        public void execute(StartupChecksOptions options)
         {
+            if (options.isDisabled(getStartupCheckType()))
+                return;
             // log warnings for different kinds of sub-optimal JVMs.  tldr use 64-bit Oracle >= 1.6u32
             if (!DatabaseDescriptor.hasLargeAddressSpace())
                 logger.warn("32bit JVM detected.  It is recommended to run Cassandra on a 64bit JVM for better performance.");
@@ -271,8 +312,11 @@ public class StartupChecks
 
     public static final StartupCheck checkNativeLibraryInitialization = new StartupCheck()
     {
-        public void execute() throws StartupException
+        @Override
+        public void execute(StartupChecksOptions options) throws StartupException
         {
+            if (options.isDisabled(getStartupCheckType()))
+                return;
             // Fail-fast if the native library could not be linked.
             if (!NativeLibrary.isAvailable())
                 throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE, "The native library could not be initialized properly. ");
@@ -281,8 +325,11 @@ public class StartupChecks
 
     public static final StartupCheck initSigarLibrary = new StartupCheck()
     {
-        public void execute()
+        @Override
+        public void execute(StartupChecksOptions options)
         {
+            if (options.isDisabled(getStartupCheckType()))
+                return;
             SigarLibrary.instance.warnIfRunningInDegradedMode();
         }
     };
@@ -323,9 +370,9 @@ public class StartupChecks
         }
 
         @Override
-        public void execute()
+        public void execute(StartupChecksOptions options)
         {
-            if (!FBUtilities.isLinux)
+            if (options.isDisabled(getStartupCheckType()) || !FBUtilities.isLinux)
                 return;
 
             String[] dataDirectories = DatabaseDescriptor.getRawConfig().data_file_directories;
@@ -397,9 +444,10 @@ public class StartupChecks
             return -1;
         }
 
-        public void execute()
+        @Override
+        public void execute(StartupChecksOptions options)
         {
-            if (!FBUtilities.isLinux)
+            if (options.isDisabled(getStartupCheckType()) || !FBUtilities.isLinux)
                 return;
 
             if (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.standard &&
@@ -414,39 +462,48 @@ public class StartupChecks
         }
     };
 
-    public static final StartupCheck checkDataDirs = () ->
+    public static final StartupCheck checkDataDirs = new StartupCheck()
     {
-        // check all directories(data, commitlog, saved cache) for existence and permission
-        Iterable<String> dirs = Iterables.concat(Arrays.asList(DatabaseDescriptor.getAllDataFileLocations()),
-                                                 Arrays.asList(DatabaseDescriptor.getCommitLogLocation(),
-                                                               DatabaseDescriptor.getSavedCachesLocation(),
-                                                               DatabaseDescriptor.getHintsDirectory().absolutePath()));
-        for (String dataDir : dirs)
+        @Override
+        public void execute(StartupChecksOptions options) throws StartupException
         {
-            logger.debug("Checking directory {}", dataDir);
-            File dir = new File(dataDir);
-
-            // check that directories exist.
-            if (!dir.exists())
+            if (options.isDisabled(getStartupCheckType()))
+                return;
+            // check all directories(data, commitlog, saved cache) for existence and permission
+            Iterable<String> dirs = Iterables.concat(Arrays.asList(DatabaseDescriptor.getAllDataFileLocations()),
+                                                     Arrays.asList(DatabaseDescriptor.getCommitLogLocation(),
+                                                                   DatabaseDescriptor.getSavedCachesLocation(),
+                                                                   DatabaseDescriptor.getHintsDirectory().absolutePath()));
+            for (String dataDir : dirs)
             {
-                logger.warn("Directory {} doesn't exist", dataDir);
-                // if they don't, failing their creation, stop cassandra.
-                if (!dir.tryCreateDirectories())
-                    throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
-                                               "Has no permission to create directory "+ dataDir);
-            }
+                logger.debug("Checking directory {}", dataDir);
+                File dir = new File(dataDir);
 
-            // if directories exist verify their permissions
-            if (!Directories.verifyFullPermissions(dir, dataDir))
-                throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
-                                           "Insufficient permissions on directory " + dataDir);
+                // check that directories exist.
+                if (!dir.exists())
+                {
+                    logger.warn("Directory {} doesn't exist", dataDir);
+                    // if they don't, failing their creation, stop cassandra.
+                    if (!dir.tryCreateDirectories())
+                        throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
+                                                   "Has no permission to create directory "+ dataDir);
+                }
+
+                // if directories exist verify their permissions
+                if (!Directories.verifyFullPermissions(dir, dataDir))
+                    throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
+                                               "Insufficient permissions on directory " + dataDir);
+            }
         }
     };
 
     public static final StartupCheck checkSSTablesFormat = new StartupCheck()
     {
-        public void execute() throws StartupException
+        @Override
+        public void execute(StartupChecksOptions options) throws StartupException
         {
+            if (options.isDisabled(getStartupCheckType()))
+                return;
             final Set<String> invalid = new HashSet<>();
             final Set<String> nonSSTablePaths = new HashSet<>();
             nonSSTablePaths.add(FileUtils.getCanonicalPath(DatabaseDescriptor.getCommitLogLocation()));
@@ -509,8 +566,11 @@ public class StartupChecks
 
     public static final StartupCheck checkSystemKeyspaceState = new StartupCheck()
     {
-        public void execute() throws StartupException
+        @Override
+        public void execute(StartupChecksOptions options) throws StartupException
         {
+            if (options.isDisabled(getStartupCheckType()))
+                return;
             // check the system keyspace to keep user from shooting self in foot by changing partitioner, cluster name, etc.
             // we do a one-off scrub of the system keyspace first; we can't load the list of the rest of the keyspaces,
             // until system keyspace is opened.
@@ -531,9 +591,13 @@ public class StartupChecks
 
     public static final StartupCheck checkDatacenter = new StartupCheck()
     {
-        public void execute() throws StartupException
+        @Override
+        public void execute(StartupChecksOptions options) throws StartupException
         {
-            if (!Boolean.getBoolean("cassandra.ignore_dc"))
+            boolean enabled = options.isEnabled(getStartupCheckType());
+            if (CassandraRelevantProperties.IGNORE_DC.isPresent())
+                enabled = !Boolean.getBoolean(CassandraRelevantProperties.IGNORE_DC.getKey());
+            if (enabled)
             {
                 String storedDc = SystemKeyspace.getDatacenter();
                 if (storedDc != null)
@@ -553,9 +617,13 @@ public class StartupChecks
 
     public static final StartupCheck checkRack = new StartupCheck()
     {
-        public void execute() throws StartupException
+        @Override
+        public void execute(StartupChecksOptions options) throws StartupException
         {
-            if (!Boolean.getBoolean("cassandra.ignore_rack"))
+            boolean enabled = options.isEnabled(getStartupCheckType());
+            if (CassandraRelevantProperties.IGNORE_RACK.isPresent())
+                enabled = !Boolean.getBoolean(CassandraRelevantProperties.IGNORE_RACK.getKey());
+            if (enabled)
             {
                 String storedRack = SystemKeyspace.getRack();
                 if (storedRack != null)
@@ -573,12 +641,165 @@ public class StartupChecks
         }
     };
 
-    public static final StartupCheck checkLegacyAuthTables = () ->
+    public static final StartupCheck checkLegacyAuthTables = new StartupCheck()
     {
-        Optional<String> errMsg = checkLegacyAuthTablesMessage();
-        if (errMsg.isPresent())
-            throw new StartupException(StartupException.ERR_WRONG_CONFIG, errMsg.get());
+        @Override
+        public void execute(StartupChecksOptions options) throws StartupException
+        {
+            if (options.isDisabled(getStartupCheckType()))
+                return;
+            Optional<String> errMsg = checkLegacyAuthTablesMessage();
+            if (errMsg.isPresent())
+                throw new StartupException(StartupException.ERR_WRONG_CONFIG, errMsg.get());
+        }
     };
+
+    public static class GcGraceSecondsOnStartupCheck implements StartupCheck
+    {
+        public static final String DEFAULT_HEARTBEAT_FILE = ".cassandra-heartbeat";
+
+        @VisibleForTesting
+        public static File getHeartbeatFile(Map<String, Object> config)
+        {
+            final Object heartbeatFileConfigValue = config.get("heartbeat_file");
+
+            if (heartbeatFileConfigValue == null)
+                return new File(DEFAULT_HEARTBEAT_FILE);
+            else
+                return new File(heartbeatFileConfigValue.toString());
+        }
+
+        @VisibleForTesting
+        public Set<String> getExcludedKeyspaces(Map<String, Object> config)
+        {
+            final Object excludedKeyspacesConfigValue = config.get("excluded_keyspaces");
+
+            if (excludedKeyspacesConfigValue == null)
+                return Collections.emptySet();
+            else
+                return Arrays.stream(excludedKeyspacesConfigValue.toString().trim().split(","))
+                             .map(String::trim)
+                             .collect(toSet());
+        }
+
+        @VisibleForTesting
+        public Set<Pair<String, String>> getExcludedTables(Map<String, Object> config)
+        {
+            final Object excludedKeyspacesConfigValue = config.get("excluded_tables");
+
+            if (excludedKeyspacesConfigValue == null)
+                return Collections.emptySet();
+
+            Set<Pair<String, String>> pairs = new HashSet<>();
+
+            for (String keyspaceTable : excludedKeyspacesConfigValue.toString().trim().split(","))
+            {
+                String[] pair = keyspaceTable.trim().split("\\.");
+                if (pair.length != 2)
+                    continue;
+
+                pairs.add(Pair.create(pair[0].trim(), pair[1].trim()));
+            }
+
+            return pairs;
+        }
+
+        @Override
+        public void execute(StartupChecksOptions options) throws StartupException
+        {
+            if (options.isDisabled(getStartupCheckType()))
+                return;
+
+            Map<String, Object> config = options.getConfig(getStartupCheckType());
+            File heartbeatFile = getHeartbeatFile(config);
+
+            if (!heartbeatFile.exists())
+            {
+                logger.debug("Heartbeat file {} not found! Skipping heartbeat startup check.",
+                             heartbeatFile.absolutePath());
+                return;
+            }
+
+            List<String> heartbeatFileLines;
+
+            try
+            {
+                heartbeatFileLines = new ArrayList<>(FileUtils.readLines(heartbeatFile));
+            }
+            catch (Exception ex)
+            {
+                throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
+                                           String.format("Unable to read heartbeat file %s",
+                                                         heartbeatFile.absolutePath()));
+            }
+
+            if (heartbeatFileLines.isEmpty())
+            {
+                logger.debug("Heartbeat file {} is empty! Skipping heartbeat startup check.",
+                             heartbeatFile.absolutePath());
+                return;
+            }
+
+            // we expect heartbeat value to be on the first line
+            long heartbeat = parseHeartbeat(heartbeatFileLines.get(0));
+            logger.debug("Resolved heartbeat with the lastly know time this node was running: {}",
+                         Instant.ofEpochMilli(heartbeat));
+
+            List<Pair<String, String>> violations = new ArrayList<>();
+            long currentTimeMillis = Clock.Global.currentTimeMillis();
+
+            Set<String> excludedKeyspaces = getExcludedKeyspaces(config);
+            Set<Pair<String, String>> excludedTables = getExcludedTables(config);
+
+            for (String userKeyspace : Schema.instance.getUserKeyspaces())
+            {
+                if (excludedKeyspaces.contains(userKeyspace))
+                    continue;
+
+                for (TableMetadata userTable : Schema.instance.getTablesAndViews(userKeyspace))
+                {
+                    if (excludedTables.contains(Pair.create(userTable.keyspace, userTable.name)))
+                        continue;
+
+                    long gcGraceMillis = ((long) userTable.params.gcGraceSeconds) * 1000;
+                    if (currentTimeMillis - gcGraceMillis < heartbeat)
+                        violations.add(Pair.create(userTable.keyspace, userTable.name));
+                }
+            }
+
+            if (!violations.isEmpty())
+            {
+                String invalidTables = violations.stream()
+                                                 .map(p -> String.format("%s.%s", p.left, p.right))
+                                                 .collect(Collectors.joining(","));
+
+                String exceptionMessage = String.format("There are tables for which gcGraceSeconds is older " +
+                                                        "then the lastly known time Cassandra node was up based " +
+                                                        "on its heartbeat. Cassandra node will not start " +
+                                                        "as it would likely introduce data consistency issues (zombies etc). " +
+                                                        "Please resolve these issues manually and start the node again. " +
+                                                        "Invalid tables: %s", invalidTables);
+
+                throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE, exceptionMessage);
+            }
+        }
+
+        private long parseHeartbeat(String heartbeatLine) throws StartupException
+        {
+            try
+            {
+                String lineSeparator = CassandraRelevantProperties.LINE_SEPARATOR.getString();
+                String heartbeat = heartbeatLine.replaceAll(lineSeparator, "");
+                return Long.parseLong(heartbeat);
+            }
+            catch (Exception ex)
+            {
+                throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE, "Unable to parse heartbeat!");
+            }
+        }
+    }
+
+    public static final GcGraceSecondsOnStartupCheck checkGcGraceSecondsOnStartup = new GcGraceSecondsOnStartupCheck();
 
     @VisibleForTesting
     public static Path getReadAheadKBPath(String blockDirectoryPath)
