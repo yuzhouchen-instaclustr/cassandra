@@ -24,7 +24,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="4.0.1"/>
+    <property name="base.version" value="4.0.1.1"/>
     <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
@@ -514,8 +514,8 @@
           <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.25"/>
           <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j" version="1.7.25"/>
           <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j" version="1.7.25" />
-          <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.2.3"/>
-          <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.2.3"/>
+          <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.2.10"/>
+          <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.2.10"/>
           <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-core" version="2.9.10"/>
           <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-databind" version="2.9.10.8"/>
           <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-annotations" version="2.9.10"/>
