@@ -1,3 +1,6 @@
+3.11.8.4
+* Bump logback dependency version to address CVE-2021-42550.
+
 3.11.8.3
  * Validation Compactions causing Java GC pressure (CASSANDRA-16161)
 
