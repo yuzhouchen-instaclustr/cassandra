@@ -1,5 +1,6 @@
 3.11.11.1
  * Reject empty options and invalid DC names in replication configuration while creating or altering a keyspace (CASSANDRA-12681)
+ * Bumped logback dependency version to address CVE-2021-42550.
 
 3.11.11
  * Binary releases no longer bundle the apidocs (javadoc) (CASSANDRA-16557)
