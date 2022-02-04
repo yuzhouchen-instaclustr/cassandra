@@ -33,6 +33,7 @@ import java.util.function.Function;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.SetMultimap;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -171,7 +172,10 @@ public class StartupClusterConnectivityChecker
         {
             // dc -> missing peer host addresses
             Map<String, List<String>> peersDown = acks.getMissingPeers().stream()
-                                                      .collect(groupingBy(peerToDatacenter::get,
+                                                      .collect(groupingBy(peer -> {
+                                                                              String dc = peerToDatacenter.get(peer);
+                                                                              return dc != null ? dc : StringUtils.defaultString(getDatacenterSource.apply(peer), "unknown");
+                                                                          },
                                                                           mapping(InetAddressAndPort::getHostAddressAndPort,
                                                                                   toList())));
             logger.warn("Timed out after {} milliseconds, was waiting for remaining peers to connect: {}",
