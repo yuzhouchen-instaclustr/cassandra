@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
+import java.util.List;
 
 import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.io.util.File;
@@ -31,9 +33,15 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.StartupException;
-import org.apache.cassandra.io.util.FileUtils;
 
-import static org.junit.Assert.assertFalse;
+import static java.time.Instant.ofEpochMilli;
+import static java.util.Collections.singletonList;
+import static org.apache.cassandra.io.util.FileUtils.createTempFile;
+import static org.apache.cassandra.io.util.FileUtils.write;
+import static org.apache.cassandra.service.GcGraceSecondsOnStartupCheck.HEARTBEAT_FILE_CONFIG_PROPERTY;
+import static org.apache.cassandra.service.StartupChecks.StartupCheckType.gc_grace_period;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -42,12 +50,14 @@ public class StartupChecksTest
     public static final String INVALID_LEGACY_SSTABLE_ROOT_PROP = "invalid-legacy-sstable-root";
     StartupChecks startupChecks;
     Path sstableDir;
+    static File heartbeatFile;
 
     StartupChecksOptions options = new StartupChecksOptions();
 
     @BeforeClass
     public static void setupServer()
     {
+        heartbeatFile = createTempFile("cassandra-heartbeat-", "");
         SchemaLoader.prepareServer();
     }
 
@@ -57,11 +67,15 @@ public class StartupChecksTest
         for (ColumnFamilyStore cfs : Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStores())
             cfs.clearUnsafe();
         for (File dataDir : Directories.getKSChildDirectories(SchemaConstants.SYSTEM_KEYSPACE_NAME))
-            FileUtils.deleteRecursive(dataDir);
+            dataDir.deleteRecursive();
 
         File dataDir = new File(DatabaseDescriptor.getAllDataFileLocations()[0]);
         sstableDir = Paths.get(dataDir.absolutePath(), "Keyspace1", "Standard1");
         Files.createDirectories(sstableDir);
+
+        options.enable(gc_grace_period);
+        options.getConfig(gc_grace_period)
+               .put(HEARTBEAT_FILE_CONFIG_PROPERTY, heartbeatFile.absolutePath());
 
         startupChecks = new StartupChecks();
     }
@@ -69,7 +83,7 @@ public class StartupChecksTest
     @After
     public void tearDown() throws IOException
     {
-        FileUtils.deleteRecursive(new File(sstableDir));
+        new File(sstableDir).deleteRecursive();
     }
 
     @Test
@@ -82,13 +96,13 @@ public class StartupChecksTest
         verifyFailure(startupChecks, "Detected unreadable sstables");
 
         // we should ignore invalid sstables in a snapshots directory
-        FileUtils.deleteRecursive(new File(sstableDir));
+        new File(sstableDir).deleteRecursive();
         Path snapshotDir = sstableDir.resolve("snapshots");
         Files.createDirectories(snapshotDir);
         copyInvalidLegacySSTables(snapshotDir); startupChecks.verify(options);
 
         // and in a backups directory
-        FileUtils.deleteRecursive(new File(sstableDir));
+        new File(sstableDir).deleteRecursive();
         Path backupDir = sstableDir.resolve("backups");
         Files.createDirectories(backupDir);
         copyInvalidLegacySSTables(backupDir);
@@ -101,7 +115,7 @@ public class StartupChecksTest
         startupChecks = startupChecks.withTest(StartupChecks.checkSSTablesFormat);
 
         copyLegacyNonSSTableFiles(sstableDir);
-        assertFalse(new File(sstableDir).tryList().length == 0);
+        assertNotEquals(0, new File(sstableDir).tryList().length);
 
         startupChecks.verify(options);
     }
@@ -148,6 +162,33 @@ public class StartupChecksTest
                                             "Keyspace1-Standard1-ic-0-Digest.sha1",
                                             "legacyleveled.json"})
             Files.copy(Paths.get(legacySSTableRoot.toString(), filename), targetDir.resolve(filename));
+    }
+
+    @Test
+    public void testGcGracePeriodCheck() throws Exception
+    {
+        GcGraceSecondsOnStartupCheck check = new GcGraceSecondsOnStartupCheck() {
+            @Override
+            List<String> getKeyspaces()
+            {
+                return singletonList("abc");
+            }
+
+            @Override
+            List<TableGCPeriod> getTablesGcPeriods(String userKeyspace)
+            {
+                return singletonList(new TableGCPeriod("def", 10));
+            }
+        };
+
+        Instant currentTime = ofEpochMilli(currentTimeMillis());
+
+        write(heartbeatFile, currentTime.toString());
+        Thread.sleep(15 * 1000);
+
+        startupChecks.withTest(check);
+
+        verifyFailure(startupChecks, "Invalid tables: abc.def");
     }
 
     private void copyInvalidLegacySSTables(Path targetDir) throws IOException

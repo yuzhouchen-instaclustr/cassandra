@@ -21,10 +21,13 @@ package org.apache.cassandra.config;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.Test;
 
+import org.apache.cassandra.service.GcGraceSecondsOnStartupCheck;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.config.StartupChecksOptions.ENABLED_PROPERTY;
 import static org.apache.cassandra.service.StartupChecks.StartupCheckType.filesystem_ownership;
@@ -106,5 +109,42 @@ public class StartupCheckOptionsTest
         Map<StartupCheckType, Map<String, Object>> emptyConfig = new EnumMap<>(StartupCheckType.class);
         StartupChecksOptions options = new StartupChecksOptions(emptyConfig);
         assertTrue(options.isDisabled(filesystem_ownership));
+    }
+
+    @Test
+    public void testExcludedKeyspacesInGCGracePeriodCheckOptions()
+    {
+        Map<String, Object> config = new HashMap<String, Object>(){{
+            put("excluded_keyspaces", "ks1,ks2,ks3");
+        }};
+        GcGraceSecondsOnStartupCheck check = new GcGraceSecondsOnStartupCheck();
+        check.getExcludedKeyspaces(config);
+
+        Set<String> excludedKeyspaces = check.getExcludedKeyspaces(config);
+        assertEquals(3, excludedKeyspaces.size());
+        assertTrue(excludedKeyspaces.contains("ks1"));
+        assertTrue(excludedKeyspaces.contains("ks2"));
+        assertTrue(excludedKeyspaces.contains("ks3"));
+    }
+
+    @Test
+    public void testExcludedTablesInGCGracePeriodCheckOptions()
+    {
+        for (String input : new String[]{
+        "ks1.tb1,ks1.tb2,ks3.tb3",
+        " ks1 . tb1,  ks1 .tb2  ,ks3 .tb3  "
+        })
+        {
+            Map<String, Object> config = new HashMap<String, Object>(){{
+                put("excluded_tables", input);
+            }};
+
+            GcGraceSecondsOnStartupCheck check = new GcGraceSecondsOnStartupCheck();
+            Set<Pair<String, String>> excludedTables = check.getExcludedTables(config);
+            assertEquals(3, excludedTables.size());
+            assertTrue(excludedTables.contains(Pair.create("ks1", "tb1")));
+            assertTrue(excludedTables.contains(Pair.create("ks1", "tb2")));
+            assertTrue(excludedTables.contains(Pair.create("ks3", "tb3")));
+        }
     }
 }

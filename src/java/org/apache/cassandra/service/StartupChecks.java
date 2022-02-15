@@ -106,7 +106,8 @@ public class StartupChecks
         non_configurable_check,
         filesystem_ownership(true),
         dc,
-        rack;
+        rack,
+        gc_grace_period(true);
 
         public final boolean disabledByDefault;
 
@@ -143,7 +144,8 @@ public class StartupChecks
                                                                       checkSystemKeyspaceState,
                                                                       checkDatacenter,
                                                                       checkRack,
-                                                                      checkLegacyAuthTables);
+                                                                      checkLegacyAuthTables,
+                                                                      new GcGraceSecondsOnStartupCheck());
 
     public StartupChecks withDefaultTests()
     {

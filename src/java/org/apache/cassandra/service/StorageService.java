@@ -1036,6 +1036,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // gossip snitch infos (local DC and rack)
             gossipSnitchInfo();
             Schema.instance.startSync();
+            HeartbeatService.instance.start();
             LoadBroadcaster.instance.startBroadcasting();
             HintsService.instance.startDispatch();
             BatchlogManager.instance.start();
@@ -5186,6 +5187,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         try
         {
+            HeartbeatService.instance.stop();
+
             setMode(Mode.DRAINING, "starting drain process", !isFinalShutdown);
 
             try

@@ -584,6 +584,11 @@ public final class FileUtils
         }
     }
 
+    public static void write(File file, String line, StandardOpenOption... options)
+    {
+        write(file, Collections.singletonList(line), options);
+    }
+
     public static List<String> readLines(File file)
     {
         try
