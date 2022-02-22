@@ -1,4 +1,5 @@
 4.1
+ * Replace in-tree wcwidth module for pylib with the proper Python module (CASSANDRA-17287)
  * update Python test framework from nose to pytest (CASSANDRA-17293)
  * Fix improper CDC commit log segments deletion in non-blocking mode (CASSANDRA-17233)
  * Add support for string concatenations through the + operator (CASSANDRA-17190)
