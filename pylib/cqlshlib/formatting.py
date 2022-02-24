@@ -24,7 +24,6 @@ import os
 import re
 import sys
 import platform
-import wcwidth
 
 from six import ensure_text
 
@@ -34,6 +33,8 @@ from cassandra.cqltypes import EMPTY
 from cassandra.util import datetime_from_timestamp
 from .displaying import colorme, get_str, FormattedValue, DEFAULT_VALUE_COLORS, NO_COLOR_MAP
 from .util import UTC
+from wcwidth import wcswidth
+
 
 unicode_controlchars_re = re.compile(r'[\x00-\x31\x7f-\xa0]')
 controlchars_re = re.compile(r'[\x00-\x31\x7f-\xff]')
@@ -495,7 +496,7 @@ def format_value_text(val, encoding, colormap, quote=False, **_):
     bval = escapedval
     if quote:
         bval = "'{}'".format(bval)
-    return bval if colormap is NO_COLOR_MAP else color_text(bval, colormap, wcwidth.wcswidth(bval))
+    return bval if colormap is NO_COLOR_MAP else color_text(bval, colormap, wcswidth(bval))
 
 
 # name alias
