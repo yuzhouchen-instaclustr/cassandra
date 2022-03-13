@@ -19,12 +19,19 @@ package org.apache.cassandra.audit;
 
 import java.util.Map;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+
 /**
  * No-Op implementation of {@link IAuditLogger} to be used as a default audit logger when audit logging is disabled.
  */
 public class NoOpAuditLogger implements IAuditLogger
 {
-    public NoOpAuditLogger(Map<String, String> params)
+    public NoOpAuditLogger()
+    {
+        this(DatabaseDescriptor.getAuditLoggingOptions());
+    }
+
+    public NoOpAuditLogger(AuditLogOptions options)
     {
 
     }

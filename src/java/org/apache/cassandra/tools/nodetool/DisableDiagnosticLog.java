@@ -15,37 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.audit;
 
-import java.util.LinkedList;
-import java.util.Queue;
+package org.apache.cassandra.tools.nodetool;
 
-public class InMemoryAuditLogger implements IAuditLogger
+import io.airlift.airline.Command;
+import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.NodeTool;
+
+@Command(name = "disablediagnosticlog", description = "Disable the diagnostic log")
+public class DisableDiagnosticLog extends NodeTool.NodeToolCmd
 {
-    final Queue<AuditLogEntry> inMemQueue = new LinkedList<>();
-    private boolean enabled = true;
-
-    public InMemoryAuditLogger(AuditLogOptions options)
-    {
-
-    }
-
     @Override
-    public boolean isEnabled()
+    protected void execute(NodeProbe probe)
     {
-        return enabled;
-    }
-
-    @Override
-    public void log(AuditLogEntry logMessage)
-    {
-        inMemQueue.offer(logMessage);
-    }
-
-    @Override
-    public void stop()
-    {
-        enabled = false;
-        inMemQueue.clear();
+        probe.disableDiagnosticLog();
     }
 }

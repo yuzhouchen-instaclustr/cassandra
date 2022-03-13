@@ -66,6 +66,7 @@ import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
+import org.apache.cassandra.diag.DiagnosticEventService;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
@@ -147,6 +148,7 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.cassandra.utils.binlog.BinLogOptions;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -1039,6 +1041,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             LoadBroadcaster.instance.startBroadcasting();
             HintsService.instance.startDispatch();
             BatchlogManager.instance.start();
+            DiagnosticEventService.instance().initialize();
             snapshotManager.start();
         }
     }
@@ -6138,7 +6141,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
                                Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws ConfigurationException, IllegalStateException
     {
-        final AuditLogOptions options = new AuditLogOptions.Builder(DatabaseDescriptor.getAuditLoggingOptions())
+        BinLogOptions binLogOptions = new BinLogOptions.Builder()
+                                                       .withMaxArchiveRetries(maxArchiveRetries)
+                                                       .withBlock(block)
+                                                       .withRollCycle(rollCycle)
+                                                       .withMaxLogSize(maxLogSize)
+                                                       .withMaxQueueWeight(maxQueueWeight)
+                                                       .withArchiveCommand(archiveCommand)
+                                                       .build();
+
+        final AuditLogOptions options = new AuditLogOptions.Builder(binLogOptions, DatabaseDescriptor.getAuditLoggingOptions())
                                         .withEnabled(true)
                                         .withLogger(loggerName, parameters)
                                         .withIncludedKeyspaces(includedKeyspaces)
@@ -6147,12 +6159,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                         .withExcludedCategories(excludedCategories)
                                         .withIncludedUsers(includedUsers)
                                         .withExcludedUsers(excludedUsers)
-                                        .withMaxArchiveRetries(maxArchiveRetries)
-                                        .withBlock(block)
-                                        .withRollCycle(rollCycle)
-                                        .withMaxLogSize(maxLogSize)
-                                        .withMaxQueueWeight(maxQueueWeight)
-                                        .withArchiveCommand(archiveCommand)
                                         .build();
 
         AuditLogManager.instance.enable(options);

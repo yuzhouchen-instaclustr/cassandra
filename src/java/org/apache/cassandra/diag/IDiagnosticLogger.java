@@ -15,37 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.audit;
 
-import java.util.LinkedList;
-import java.util.Queue;
+package org.apache.cassandra.diag;
 
-public class InMemoryAuditLogger implements IAuditLogger
+import java.util.function.Consumer;
+
+import org.apache.cassandra.log.ILogger;
+
+public interface IDiagnosticLogger extends ILogger<DiagnosticEvent>, Consumer<DiagnosticEvent>
 {
-    final Queue<AuditLogEntry> inMemQueue = new LinkedList<>();
-    private boolean enabled = true;
-
-    public InMemoryAuditLogger(AuditLogOptions options)
+    default void log(DiagnosticEvent diagnosticEvent)
     {
-
-    }
-
-    @Override
-    public boolean isEnabled()
-    {
-        return enabled;
-    }
-
-    @Override
-    public void log(AuditLogEntry logMessage)
-    {
-        inMemQueue.offer(logMessage);
-    }
-
-    @Override
-    public void stop()
-    {
-        enabled = false;
-        inMemQueue.clear();
+        accept(diagnosticEvent);
     }
 }

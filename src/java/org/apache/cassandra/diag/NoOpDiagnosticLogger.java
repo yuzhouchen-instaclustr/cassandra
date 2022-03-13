@@ -16,42 +16,36 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.audit;
+package org.apache.cassandra.diag;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
-/**
- * Synchronous, file-based audit logger; just uses the standard logging mechansim.
- */
-public class FileAuditLogger implements IAuditLogger
+public class NoOpDiagnosticLogger implements IDiagnosticLogger
 {
-    protected static final Logger logger = LoggerFactory.getLogger(FileAuditLogger.class);
-
-    private volatile boolean enabled;
-
-    public FileAuditLogger(AuditLogOptions options)
+    public NoOpDiagnosticLogger()
     {
-        enabled = true;
+        this(DatabaseDescriptor.getDiagnosticLoggingOptions());
+    }
+
+    public NoOpDiagnosticLogger(DiagnosticLogOptions options)
+    {
     }
 
     @Override
     public boolean isEnabled()
     {
-        return enabled;
-    }
-
-    @Override
-    public void log(AuditLogEntry auditLogEntry)
-    {
-        // don't bother with the volatile read of enabled here. just go ahead and log, other components
-        // will check the enbaled field.
-        logger.info(auditLogEntry.getLogString());
+        return false;
     }
 
     @Override
     public void stop()
     {
-        enabled = false;
+        DiagnosticEventService.instance().unsubscribe(this);
+    }
+
+    @Override
+    public void accept(DiagnosticEvent diagnosticEvent)
+    {
+
     }
 }

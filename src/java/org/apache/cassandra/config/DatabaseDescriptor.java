@@ -42,6 +42,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogOptions;
+import org.apache.cassandra.diag.DiagnosticLogOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.AuthConfig;
@@ -3546,7 +3547,17 @@ public class DatabaseDescriptor
         if (value > getConcurrentCompactors())
             logger.warn("max_concurrent_automatic_sstable_upgrades ({}) is larger than concurrent_compactors ({})", value, getConcurrentCompactors());
     }
-    
+
+    public static DiagnosticLogOptions getDiagnosticLoggingOptions()
+    {
+        return conf.diagnostic_logging_options;
+    }
+
+    public static void setDiagnosticLoggingOptions(DiagnosticLogOptions diagnosticLogOptions)
+    {
+        conf.diagnostic_logging_options = new DiagnosticLogOptions.Builder(diagnosticLogOptions).build();
+    }
+
     public static AuditLogOptions getAuditLoggingOptions()
     {
         return conf.audit_logging_options;

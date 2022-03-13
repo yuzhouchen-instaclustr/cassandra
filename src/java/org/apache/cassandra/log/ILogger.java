@@ -15,37 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.audit;
 
-import java.util.LinkedList;
-import java.util.Queue;
+package org.apache.cassandra.log;
 
-public class InMemoryAuditLogger implements IAuditLogger
+public interface ILogger<T>
 {
-    final Queue<AuditLogEntry> inMemQueue = new LinkedList<>();
-    private boolean enabled = true;
+    boolean isEnabled();
 
-    public InMemoryAuditLogger(AuditLogOptions options)
-    {
+    /**
+     * Logs a log entry. This method might be called after {@link #stop()},
+     * hence implementations need to handle the race condition.
+     */
+    void log(T logEntry);
 
-    }
-
-    @Override
-    public boolean isEnabled()
-    {
-        return enabled;
-    }
-
-    @Override
-    public void log(AuditLogEntry logMessage)
-    {
-        inMemQueue.offer(logMessage);
-    }
-
-    @Override
-    public void stop()
-    {
-        enabled = false;
-        inMemQueue.clear();
-    }
+    /**
+     * Stop and cleanup any resources of ILogger implementations. Please note that
+     * {@link #log(T)} might be called after being stopped.
+     */
+    void stop();
 }
