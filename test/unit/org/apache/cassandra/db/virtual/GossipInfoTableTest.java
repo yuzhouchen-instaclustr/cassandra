@@ -18,7 +18,8 @@
 
 package org.apache.cassandra.db.virtual;
 
-import java.util.Map;
+import java.util.Arrays;
+import java.util.Map.Entry;
 import java.util.Optional;
 
 import com.google.common.collect.ImmutableList;
@@ -74,9 +75,9 @@ public class GossipInfoTableTest extends CQLTester
             assertThat(resultSet.size()).isEqualTo(1);
             assertThat(Gossiper.instance.endpointStateMap.size()).isEqualTo(1);
 
-            Optional<Map.Entry<InetAddressAndPort, EndpointState>> entry = Gossiper.instance.endpointStateMap.entrySet()
-                                                                                                             .stream()
-                                                                                                             .findFirst();
+            Optional<Entry<InetAddressAndPort, EndpointState>> entry = Gossiper.instance.endpointStateMap.entrySet()
+                                                                                                         .stream()
+                                                                                                         .findFirst();
             assertThat(entry).isNotEmpty();
 
             UntypedResultSet.Row row = resultSet.one();
@@ -92,42 +93,13 @@ public class GossipInfoTableTest extends CQLTester
             assertThat(row.getString("hostname")).isEqualTo(endpoint.getHostName());
             assertThat(row.getInt("generation")).isEqualTo(localState.getHeartBeatState().getGeneration());
 
-            assertValue(row, "status", localState, ApplicationState.STATUS);
-            assertValue(row, "load", localState, ApplicationState.LOAD);
-            assertValue(row, "schema", localState, ApplicationState.SCHEMA);
-            assertValue(row, "dc", localState, ApplicationState.DC);
-            assertValue(row, "rack", localState, ApplicationState.RACK);
-            assertValue(row, "release_version", localState, ApplicationState.RELEASE_VERSION);
-            assertValue(row, "removal_coordinator", localState, ApplicationState.REMOVAL_COORDINATOR);
-            assertValue(row, "internal_ip", localState, ApplicationState.INTERNAL_IP);
-            assertValue(row, "rpc_address", localState, ApplicationState.RPC_ADDRESS);
-            assertValue(row, "severity", localState, ApplicationState.SEVERITY);
-            assertValue(row, "net_version", localState, ApplicationState.NET_VERSION);
-            assertValue(row, "host_id", localState, ApplicationState.HOST_ID);
-            assertValue(row, "rpc_ready", localState, ApplicationState.RPC_READY);
-            assertValue(row, "internal_address_and_port", localState, ApplicationState.INTERNAL_ADDRESS_AND_PORT);
-            assertValue(row, "native_address_and_port", localState, ApplicationState.NATIVE_ADDRESS_AND_PORT);
-            assertValue(row, "status_with_port", localState, ApplicationState.STATUS_WITH_PORT);
-            assertValue(row, "sstable_versions", localState, ApplicationState.SSTABLE_VERSIONS);
+            Arrays.stream(ApplicationState.values())
+                  .filter(GossipInfoTable.eligibleStatesForValues)
+                  .forEach(s -> assertValue(row, s.name().toLowerCase(), localState, s));
 
-            assertVersion(row, "status_version", localState, ApplicationState.STATUS);
-            assertVersion(row, "load_version", localState, ApplicationState.LOAD);
-            assertVersion(row, "schema_version", localState, ApplicationState.SCHEMA);
-            assertVersion(row, "dc_version", localState, ApplicationState.DC);
-            assertVersion(row, "rack_version", localState, ApplicationState.RACK);
-            assertVersion(row, "release_version_version", localState, ApplicationState.RELEASE_VERSION);
-            assertVersion(row, "removal_coordinator_version", localState, ApplicationState.REMOVAL_COORDINATOR);
-            assertVersion(row, "internal_ip_version", localState, ApplicationState.INTERNAL_IP);
-            assertVersion(row, "rpc_address_version", localState, ApplicationState.RPC_ADDRESS);
-            assertVersion(row, "severity_version", localState, ApplicationState.SEVERITY);
-            assertVersion(row, "net_version_version", localState, ApplicationState.NET_VERSION);
-            assertVersion(row, "host_id_version", localState, ApplicationState.HOST_ID);
-            assertVersion(row, "tokens_version", localState, ApplicationState.TOKENS);
-            assertVersion(row, "rpc_ready_version", localState, ApplicationState.RPC_READY);
-            assertVersion(row, "internal_address_and_port_version", localState, ApplicationState.INTERNAL_ADDRESS_AND_PORT);
-            assertVersion(row, "native_address_and_port_version", localState, ApplicationState.NATIVE_ADDRESS_AND_PORT);
-            assertVersion(row, "status_with_port_version", localState, ApplicationState.STATUS_WITH_PORT);
-            assertVersion(row, "sstable_versions_version", localState, ApplicationState.SSTABLE_VERSIONS);
+            Arrays.stream(ApplicationState.values())
+                  .filter(GossipInfoTable.eligibleStatesForVersions)
+                  .forEach(s -> assertVersion(row, s.name().toLowerCase() + "_version", localState, s));
         }
         finally
         {
