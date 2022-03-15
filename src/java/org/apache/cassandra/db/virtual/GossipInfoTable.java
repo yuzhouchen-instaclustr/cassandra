@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.virtual;
 
-import java.util.EnumSet;
 import java.util.Map;
 
 import org.apache.cassandra.db.marshal.InetAddressType;
@@ -48,7 +47,7 @@ final class GossipInfoTable extends AbstractVirtualTable
     static final String GENERATION = "generation";
     static final String HEARTBEAT = "heartbeat";
 
-    static final EnumSet<ApplicationState> STATES = EnumSet.allOf(ApplicationState.class);
+    private static final ApplicationState[] states = ApplicationState.values();
 
     /**
      * Construct a new {@link GossipInfoTable} for the given {@code keyspace}.
@@ -77,12 +76,16 @@ final class GossipInfoTable extends AbstractVirtualTable
                                           .column(GENERATION, getGeneration(localState))
                                           .column(HEARTBEAT, getHeartBeat(localState));
 
-            STATES.stream()
-                  // do not add a column for the ApplicationState.TOKENS value
-                  .filter(state -> state != TOKENS)
-                  .forEach(state -> dataSet.column(state.name().toLowerCase(), getValue(localState, state)));
+            for (ApplicationState state : states)
+            {
+                if (state == TOKENS)
+                    continue;
 
-            STATES.forEach(state -> dataSet.column(state.name().toLowerCase() + "_version", getVersion(localState, state)));
+                dataSet.column(state.name().toLowerCase(), getValue(localState, state));
+            }
+
+            for (ApplicationState state : states)
+                dataSet.column(state.name().toLowerCase() + "_version", getVersion(localState, state));
         }
         return result;
     }
@@ -155,12 +158,16 @@ final class GossipInfoTable extends AbstractVirtualTable
                                                      .addRegularColumn(GENERATION, Int32Type.instance)
                                                      .addRegularColumn(HEARTBEAT, Int32Type.instance);
 
-        STATES.stream()
-              // do not add a column for the ApplicationState.TOKENS value
-              .filter(state -> state != TOKENS)
-              .forEach(state -> builder.addRegularColumn(state.name().toLowerCase(), UTF8Type.instance));
+        for (ApplicationState state : states)
+        {
+            if (state == TOKENS)
+                continue;
 
-        STATES.forEach(state -> builder.addRegularColumn(state.name().toLowerCase() + "_version", Int32Type.instance));
+            builder.addRegularColumn(state.name().toLowerCase(), UTF8Type.instance);
+        }
+
+        for (ApplicationState state : states)
+            builder.addRegularColumn(state.name().toLowerCase() + "_version", Int32Type.instance);
 
         return builder.build();
     }
