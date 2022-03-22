@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
@@ -32,6 +35,8 @@ import org.apache.cassandra.transport.Event.SchemaChange.Target;
 
 public final class AlterViewStatement extends AlterSchemaStatement
 {
+    private static final Logger logger = LoggerFactory.getLogger(AlterViewStatement.class);
+
     private final String viewName;
     private final TableAttributes attrs;
     private ClientState state;
@@ -79,10 +84,11 @@ public final class AlterViewStatement extends AlterSchemaStatement
 
         if (params.defaultTimeToLive > 0)
         {
-            throw ire("Forbidden default_time_to_live detected for a materialized view. " +
-                      "Data in a materialized view always expire at the same time than " +
-                      "the corresponding data in the parent table. default_time_to_live " +
-                      "must be set to zero, see CASSANDRA-12868 for more information");
+            params = params.unbuild().defaultTimeToLive(0).build();
+            logger.warn("Forbidden default_time_to_live detected for a materialized view. " +
+                        "Data in a materialized view always expire at the same time than " +
+                        "the corresponding data in the parent table. default_time_to_live " +
+                        "must and will be set to zero, see CASSANDRA-12868 for more information");
         }
 
         ViewMetadata newView = view.copy(view.metadata.withSwapped(params));
