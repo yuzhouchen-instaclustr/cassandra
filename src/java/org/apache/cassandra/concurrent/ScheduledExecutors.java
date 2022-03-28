@@ -49,6 +49,11 @@ public class ScheduledExecutors
      */
     public static final ScheduledExecutorPlus optionalTasks = executorFactory().scheduled(false, "OptionalTasks");
 
+    public static void shutdownNow()
+    {
+        ExecutorUtils.shutdownNow(scheduledTasks, scheduledFastTasks, nonPeriodicTasks, optionalTasks);
+    }
+
     public static void shutdownNowAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         ExecutorUtils.shutdownNowAndWait(timeout, unit, scheduledTasks, scheduledFastTasks, nonPeriodicTasks, optionalTasks);
