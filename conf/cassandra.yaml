@@ -1684,3 +1684,4 @@ drop_compact_storage_enabled: false
 #    heartbeat_file: # file where Cassandra will every minute write the last time it was known to run
 #    excluded_keyspaces: # comma separated list of keyspaces to exclude
 #    excluded_tables: # comma separated list of keyspace.table pairs to exclude
+#    heartbeat_service: true # defaults to true, if true, there will be periodic heartbeat saved to heartbeat_file

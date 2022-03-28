@@ -41,6 +41,7 @@ import org.apache.cassandra.io.util.File;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.service.GcGraceSecondsOnStartupCheck.HEARTBEAT_SERVICE_PROPERTY;
 import static org.apache.cassandra.service.GcGraceSecondsOnStartupCheck.parseHeartbeatFile;
 import static org.apache.cassandra.service.StartupChecks.StartupCheckType.gc_grace_period;
 import static org.awaitility.Awaitility.await;
@@ -106,6 +107,25 @@ public class HeartbeatServiceTest
         assertTrue(executor.isShutdown());
         assertFalse(heartbeats.isEmpty());
         assertEquals(5, heartbeats.size());
+    }
+
+    @Test
+    public void testDisabledHeartbeatService() throws Exception
+    {
+        HeartbeatService disabledHeartbeatService = new HeartbeatService() {
+            @Override
+            StartupChecksOptions getStartupChecksOptions()
+            {
+                StartupChecksOptions options = new StartupChecksOptions();
+                options.enable(gc_grace_period);
+                options.getConfig(gc_grace_period).put(HEARTBEAT_SERVICE_PROPERTY, false);
+                return options;
+            }
+        };
+
+        disabledHeartbeatService.start();
+        assertFalse(disabledHeartbeatService.started);
+        disabledHeartbeatService.stop();
     }
 
     @Test

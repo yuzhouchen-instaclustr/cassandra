@@ -30,10 +30,12 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.io.util.File;
 
+import static java.lang.Boolean.TRUE;
 import static java.time.Instant.ofEpochMilli;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.io.util.FileUtils.write;
+import static org.apache.cassandra.service.GcGraceSecondsOnStartupCheck.HEARTBEAT_SERVICE_PROPERTY;
 import static org.apache.cassandra.service.GcGraceSecondsOnStartupCheck.getHeartbeatFile;
 import static org.apache.cassandra.service.StartupChecks.StartupCheckType.gc_grace_period;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -48,7 +50,7 @@ public class HeartbeatService
     private long delay = 1;
     private TimeUnit delayTimeUnit = MINUTES;
 
-    private boolean started = false;
+    public volatile boolean started = false;
     private Runnable heartbeat;
 
     @VisibleForTesting
@@ -92,7 +94,17 @@ public class HeartbeatService
         if (started)
             return;
 
-        if (!getStartupChecksOptions().isEnabled(gc_grace_period))
+        StartupChecksOptions startupChecksOptions = getStartupChecksOptions();
+
+        if (!startupChecksOptions.isEnabled(gc_grace_period))
+        {
+            logger.debug("gc_grace_period check is disabled.");
+            return;
+        }
+
+        Object heartbeatService = startupChecksOptions.getConfig(gc_grace_period).getOrDefault(HEARTBEAT_SERVICE_PROPERTY, TRUE);
+        boolean serviceEnabled = Boolean.parseBoolean(heartbeatService.toString());
+        if (!serviceEnabled)
         {
             logger.debug("Heartbeat service is disabled.");
             return;

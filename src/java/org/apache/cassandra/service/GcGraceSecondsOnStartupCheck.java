@@ -58,6 +58,7 @@ public class GcGraceSecondsOnStartupCheck implements StartupCheck
     public static final String HEARTBEAT_FILE_CONFIG_PROPERTY = "heartbeat_file";
     public static final String EXCLUDED_KEYSPACES_CONFIG_PROPERTY = "excluded_keyspaces";
     public static final String EXCLUDED_TABLES_CONFIG_PROPERTY = "excluded_tables";
+    public static final String HEARTBEAT_SERVICE_PROPERTY = "heartbeat_service";
 
     public static final String DEFAULT_HEARTBEAT_FILE = ".cassandra-heartbeat";
 
