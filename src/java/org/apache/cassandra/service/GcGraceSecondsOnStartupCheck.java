@@ -84,6 +84,8 @@ public class GcGraceSecondsOnStartupCheck implements StartupCheck
         return StartupChecks.StartupCheckType.gc_grace_period;
     }
 
+    private File heartbeatFile;
+
     @Override
     public void execute(StartupChecksOptions options) throws StartupException
     {
@@ -91,7 +93,7 @@ public class GcGraceSecondsOnStartupCheck implements StartupCheck
             return;
 
         Map<String, Object> config = options.getConfig(getStartupCheckType());
-        File heartbeatFile = getHeartbeatFile(config);
+        heartbeatFile = getHeartbeatFile(config);
 
         if (!heartbeatFile.exists())
         {
@@ -146,9 +148,18 @@ public class GcGraceSecondsOnStartupCheck implements StartupCheck
 
             throw new StartupException(ERR_WRONG_MACHINE_STATE, exceptionMessage);
         }
+    }
+
+    @Override
+    public void executePostCheckTask(StartupChecksOptions options) throws StartupException
+    {
+        if (options.isDisabled(getStartupCheckType()))
+            return;
+
+        assert heartbeatFile != null : "you have to call execute method first";
 
         ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> FileUtils.write(heartbeatFile,
-                                                                         ofEpochMilli(currentTimeMillis()).toString()),
+                                                                                    ofEpochMilli(currentTimeMillis()).toString()),
                                                               0, 1, TimeUnit.MINUTES);
     }
 

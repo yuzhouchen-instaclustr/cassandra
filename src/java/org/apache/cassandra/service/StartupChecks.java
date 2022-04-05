@@ -173,6 +173,10 @@ public class StartupChecks
     {
         for (StartupCheck test : preFlightChecks)
             test.execute(options);
+
+        // this will be executed only in case all checks above passed
+        for (StartupCheck test : preFlightChecks)
+            test.executePostCheckTask(options);
     }
 
     public static final StartupCheck checkJemalloc = new StartupCheck()
