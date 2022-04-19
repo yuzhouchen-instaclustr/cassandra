@@ -83,4 +83,4 @@ venv/
 cassandra-builds/
 cassandra-dtest/
 
-.cassandra-heartbeat
+cassandra-heartbeat

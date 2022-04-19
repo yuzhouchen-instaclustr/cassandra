@@ -28,23 +28,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.Pair;
 
 import static java.lang.String.format;
-import static java.time.Instant.ofEpochMilli;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
@@ -63,7 +59,7 @@ public class GcGraceSecondsOnStartupCheck implements StartupCheck
     public static final String EXCLUDED_KEYSPACES_CONFIG_PROPERTY = "excluded_keyspaces";
     public static final String EXCLUDED_TABLES_CONFIG_PROPERTY = "excluded_tables";
 
-    public static final String DEFAULT_HEARTBEAT_FILE = ".cassandra-heartbeat";
+    public static final String DEFAULT_HEARTBEAT_FILE = "cassandra-heartbeat";
 
     @VisibleForTesting
     static class TableGCPeriod
@@ -146,10 +142,6 @@ public class GcGraceSecondsOnStartupCheck implements StartupCheck
 
             throw new StartupException(ERR_WRONG_MACHINE_STATE, exceptionMessage);
         }
-
-        ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> FileUtils.write(heartbeatFile,
-                                                                         ofEpochMilli(currentTimeMillis()).toString()),
-                                                              0, 1, TimeUnit.MINUTES);
     }
 
     static File getHeartbeatFile(Map<String, Object> config)

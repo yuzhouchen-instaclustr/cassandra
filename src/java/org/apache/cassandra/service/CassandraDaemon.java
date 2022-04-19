@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -54,6 +55,7 @@ import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -78,6 +80,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
+import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.utils.FBUtilities;
@@ -89,6 +92,7 @@ import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
+import static java.time.Instant.ofEpochMilli;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_FOREGROUND;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT;
@@ -97,6 +101,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MA
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_CLASS_PATH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * The <code>CassandraDaemon</code> is an abstraction for a Cassandra daemon
@@ -498,7 +503,19 @@ public class CassandraDaemon
     {
         try
         {
-            startupChecks.verify(DatabaseDescriptor.getStartupChecksOptions());
+            StartupChecksOptions startupChecksOptions = DatabaseDescriptor.getStartupChecksOptions();
+            startupChecks.verify(startupChecksOptions);
+
+            // Schedule heartbeating after all checks have passed, not as part of the check,
+            // as it might happen that other checks after it might fail, but we would be heartbeating already.
+            if (startupChecksOptions.isEnabled(StartupCheckType.gc_grace_period))
+            {
+                Map<String, Object> config = startupChecksOptions.getConfig(StartupCheckType.gc_grace_period);
+                File heartbeatFile = GcGraceSecondsOnStartupCheck.getHeartbeatFile(config);
+
+                ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> FileUtils.write(heartbeatFile, ofEpochMilli(currentTimeMillis()).toString()),
+                                                                      0, 1, TimeUnit.MINUTES);
+            }
         }
         catch (StartupException e)
         {
