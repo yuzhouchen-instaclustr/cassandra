@@ -43,25 +43,16 @@ public interface StartupCheck
      *
      * @param startupChecksOptions all options from descriptor
      * @throws org.apache.cassandra.exceptions.StartupException if the test determines
-     *                                                          that the environement or system is not in a safe state to startup
+     * that the environement or system is not in a safe state to startup
      */
     void execute(StartupChecksOptions startupChecksOptions) throws StartupException;
 
     /**
+     *
      * @return type of this startup check for configuration retrieval
      */
     default StartupCheckType getStartupCheckType()
     {
         return StartupCheckType.non_configurable_check;
     }
-
-    /**
-     * Executes abritrary logic only after all startup checks are passed.
-     *
-     * These methods, per check, will be executed in the same order as checks were.
-     *
-     * @param startupChecksOptions all options from descriptor
-     * @throws StartupException exception thrown in case post-check task is errorneous
-     */
-    default void executePostCheckTask(StartupChecksOptions startupChecksOptions) throws StartupException {}
 }
