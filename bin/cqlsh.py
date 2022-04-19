@@ -2174,19 +2174,26 @@ def read_options(cmdlineargs, environment):
               file=sys.stderr)
         options.credentials = ''  # ConfigParser.read() will ignore unreadable files
 
+    provider = 'PlainTextAuthProvider'
+    if not options.username or not options.password:
+        if "auth_provider" in configs.sections():
+            auth_provider = dict(configs.items('auth_provider'))
+            if "classname" in auth_provider:
+                provider = auth_provider["classname"]
+
     if not options.username:
         credentials = configparser.ConfigParser()
         credentials.read(options.credentials)
 
         # use the username from credentials file but fallback to cqlshrc if username is absent from the command line parameters
-        options.username = option_with_default(credentials.get, 'plain_text_auth', 'username', username_from_cqlshrc)
+        options.username = option_with_default(credentials.get, provider, 'username', username_from_cqlshrc)
 
     if not options.password:
         rawcredentials = configparser.RawConfigParser()
         rawcredentials.read(options.credentials)
 
         # handling password in the same way as username, priority cli > credentials > cqlshrc
-        options.password = option_with_default(rawcredentials.get, 'plain_text_auth', 'password', password_from_cqlshrc)
+        options.password = option_with_default(rawcredentials.get, provider, 'password', password_from_cqlshrc)
     elif not options.insecure_password_without_warning:
         print("\nWarning: Using a password on the command line interface can be insecure."
               "\nRecommendation: use the credentials file to securely provide the password.\n", file=sys.stderr)
