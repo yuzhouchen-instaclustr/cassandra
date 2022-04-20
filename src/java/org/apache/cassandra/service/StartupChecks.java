@@ -104,10 +104,10 @@ public class StartupChecks
     {
         // non-configurable check is always enabled for execution
         non_configurable_check,
-        filesystem_ownership(true),
-        dc,
-        rack,
-        gc_grace_period(true);
+        check_filesystem_ownership(true),
+        check_dc,
+        check_rack,
+        check_data_resurrection(true);
 
         public final boolean disabledByDefault;
 
@@ -658,7 +658,7 @@ public class StartupChecks
         @Override
         public StartupCheckType getStartupCheckType()
         {
-            return StartupCheckType.dc;
+            return StartupCheckType.check_dc;
         }
     };
 
@@ -695,7 +695,7 @@ public class StartupChecks
         @Override
         public StartupCheckType getStartupCheckType()
         {
-            return StartupCheckType.rack;
+            return StartupCheckType.check_rack;
         }
     };
 

@@ -508,9 +508,9 @@ public class CassandraDaemon
 
             // Schedule heartbeating after all checks have passed, not as part of the check,
             // as it might happen that other checks after it might fail, but we would be heartbeating already.
-            if (startupChecksOptions.isEnabled(StartupCheckType.gc_grace_period))
+            if (startupChecksOptions.isEnabled(StartupCheckType.check_data_resurrection))
             {
-                Map<String, Object> config = startupChecksOptions.getConfig(StartupCheckType.gc_grace_period);
+                Map<String, Object> config = startupChecksOptions.getConfig(StartupCheckType.check_data_resurrection);
                 File heartbeatFile = GcGraceSecondsOnStartupCheck.getHeartbeatFile(config);
 
                 ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> FileUtils.write(heartbeatFile, ofEpochMilli(currentTimeMillis()).toString()),

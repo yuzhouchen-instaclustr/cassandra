@@ -30,7 +30,7 @@ import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.config.StartupChecksOptions.ENABLED_PROPERTY;
-import static org.apache.cassandra.service.StartupChecks.StartupCheckType.filesystem_ownership;
+import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_filesystem_ownership;
 import static org.apache.cassandra.service.StartupChecks.StartupCheckType.non_configurable_check;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -42,7 +42,7 @@ public class StartupCheckOptionsTest
     public void testStartupOptionsConfigApplication()
     {
         Map<StartupCheckType, Map<String, Object>> config = new EnumMap<StartupCheckType, Map<String, Object>>(StartupCheckType.class) {{
-            put(filesystem_ownership, new HashMap<String, Object>() {{
+            put(check_filesystem_ownership, new HashMap<String, Object>() {{
                 put(ENABLED_PROPERTY, true);
                 put("key", "value");
             }});
@@ -50,18 +50,18 @@ public class StartupCheckOptionsTest
 
         StartupChecksOptions options = new StartupChecksOptions(config);
 
-        assertTrue(Boolean.parseBoolean(options.getConfig(filesystem_ownership)
+        assertTrue(Boolean.parseBoolean(options.getConfig(check_filesystem_ownership)
                                                .get(ENABLED_PROPERTY)
                                                .toString()));
 
-        assertEquals("value", options.getConfig(filesystem_ownership).get("key"));
-        options.set(filesystem_ownership, "key", "value2");
-        assertEquals("value2", options.getConfig(filesystem_ownership).get("key"));
+        assertEquals("value", options.getConfig(check_filesystem_ownership).get("key"));
+        options.set(check_filesystem_ownership, "key", "value2");
+        assertEquals("value2", options.getConfig(check_filesystem_ownership).get("key"));
 
-        assertTrue(options.isEnabled(filesystem_ownership));
-        options.disable(filesystem_ownership);
-        assertFalse(options.isEnabled(filesystem_ownership));
-        assertTrue(options.isDisabled(filesystem_ownership));
+        assertTrue(options.isEnabled(check_filesystem_ownership));
+        options.disable(check_filesystem_ownership);
+        assertFalse(options.isEnabled(check_filesystem_ownership));
+        assertTrue(options.isDisabled(check_filesystem_ownership));
     }
 
     @Test
@@ -85,11 +85,11 @@ public class StartupCheckOptionsTest
     public void testEmptyDisabledValues()
     {
         Map<StartupCheckType, Map<String, Object>> emptyConfig = new EnumMap<StartupCheckType, Map<String, Object>>(StartupCheckType.class) {{
-            put(filesystem_ownership, new HashMap<>());
+            put(check_filesystem_ownership, new HashMap<>());
         }};
 
         Map<StartupCheckType, Map<String, Object>> emptyEnabledConfig = new EnumMap<StartupCheckType, Map<String, Object>>(StartupCheckType.class) {{
-            put(filesystem_ownership, new HashMap<String, Object>() {{
+            put(check_filesystem_ownership, new HashMap<String, Object>() {{
                 put(ENABLED_PROPERTY, null);
             }});
         }};
@@ -97,10 +97,10 @@ public class StartupCheckOptionsTest
         // empty enabled property or enabled property with null value are still counted as enabled
 
         StartupChecksOptions options1 = new StartupChecksOptions(emptyConfig);
-        assertTrue(options1.isDisabled(filesystem_ownership));
+        assertTrue(options1.isDisabled(check_filesystem_ownership));
 
         StartupChecksOptions options2 = new StartupChecksOptions(emptyEnabledConfig);
-        assertTrue(options2.isDisabled(filesystem_ownership));
+        assertTrue(options2.isDisabled(check_filesystem_ownership));
     }
 
     @Test
@@ -108,7 +108,7 @@ public class StartupCheckOptionsTest
     {
         Map<StartupCheckType, Map<String, Object>> emptyConfig = new EnumMap<>(StartupCheckType.class);
         StartupChecksOptions options = new StartupChecksOptions(emptyConfig);
-        assertTrue(options.isDisabled(filesystem_ownership));
+        assertTrue(options.isDisabled(check_filesystem_ownership));
     }
 
     @Test

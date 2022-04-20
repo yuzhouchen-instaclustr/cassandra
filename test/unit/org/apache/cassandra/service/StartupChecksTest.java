@@ -39,7 +39,7 @@ import static java.util.Collections.singletonList;
 import static org.apache.cassandra.io.util.FileUtils.createTempFile;
 import static org.apache.cassandra.io.util.FileUtils.write;
 import static org.apache.cassandra.service.GcGraceSecondsOnStartupCheck.HEARTBEAT_FILE_CONFIG_PROPERTY;
-import static org.apache.cassandra.service.StartupChecks.StartupCheckType.gc_grace_period;
+import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_data_resurrection;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
@@ -73,8 +73,8 @@ public class StartupChecksTest
         sstableDir = Paths.get(dataDir.absolutePath(), "Keyspace1", "Standard1");
         Files.createDirectories(sstableDir);
 
-        options.enable(gc_grace_period);
-        options.getConfig(gc_grace_period)
+        options.enable(check_data_resurrection);
+        options.getConfig(check_data_resurrection)
                .put(HEARTBEAT_FILE_CONFIG_PROPERTY, heartbeatFile.absolutePath());
 
         startupChecks = new StartupChecks();

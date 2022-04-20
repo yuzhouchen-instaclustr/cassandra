@@ -77,7 +77,7 @@ public class GcGraceSecondsOnStartupCheck implements StartupCheck
     @Override
     public StartupChecks.StartupCheckType getStartupCheckType()
     {
-        return StartupChecks.StartupCheckType.gc_grace_period;
+        return StartupChecks.StartupCheckType.check_data_resurrection;
     }
 
     @Override
