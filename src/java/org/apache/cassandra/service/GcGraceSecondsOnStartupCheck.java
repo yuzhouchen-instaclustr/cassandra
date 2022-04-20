@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -37,7 +36,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.Pair;
 
 import static java.lang.String.format;
@@ -191,18 +191,23 @@ public class GcGraceSecondsOnStartupCheck implements StartupCheck
     @VisibleForTesting
     List<String> getKeyspaces()
     {
-        return Schema.instance.getUserKeyspaces()
-                              .stream()
-                              .map(keyspaceMetadata -> keyspaceMetadata.name)
-                              .collect(toList());
+        return SchemaKeyspace.fetchNonSystemKeyspaces()
+                             .stream()
+                             .map(keyspaceMetadata -> keyspaceMetadata.name)
+                             .collect(toList());
     }
 
     @VisibleForTesting
     List<TableGCPeriod> getTablesGcPeriods(String userKeyspace)
     {
-        return StreamSupport.stream(Schema.instance.getTablesAndViews(userKeyspace).spliterator(), false)
-                            .map(metadata -> new TableGCPeriod(metadata.name, metadata.params.gcGraceSeconds))
-                            .collect(toList());
+        Optional<KeyspaceMetadata> keyspaceMetadata = SchemaKeyspace.fetchNonSystemKeyspaces().get(userKeyspace);
+        if (!keyspaceMetadata.isPresent())
+            return Collections.emptyList();
+
+        KeyspaceMetadata ksmd = keyspaceMetadata.get();
+        return ksmd.tables.stream()
+                          .filter(tmd -> tmd.params.gcGraceSeconds > 0)
+                          .map(tmd -> new TableGCPeriod(tmd.name, tmd.params.gcGraceSeconds)).collect(toList());
     }
 
     @VisibleForTesting
