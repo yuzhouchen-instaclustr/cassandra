@@ -2156,6 +2156,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     private static final class InstanceTidier implements Tidy
     {
+        private static final Logger logger = LoggerFactory.getLogger(InstanceTidier.class);
+
         private final Descriptor descriptor;
         private final CFMetaData metadata;
         private IFilter bf;
@@ -2216,26 +2218,37 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             {
                 public void run()
                 {
-                    if (logger.isTraceEnabled())
-                        logger.trace("Async instance tidier for {}, before barrier", descriptor);
+                    try
+                    {
+                        if (logger.isTraceEnabled())
+                            logger.trace("Async instance tidier for {}, before barrier", descriptor);
 
-                    if (barrier != null)
-                        barrier.await();
+                        if (barrier != null)
+                            barrier.await();
 
-                    if (logger.isTraceEnabled())
-                        logger.trace("Async instance tidier for {}, after barrier", descriptor);
+                        if (logger.isTraceEnabled())
+                            logger.trace("Async instance tidier for {}, after barrier", descriptor);
 
-                    if (bf != null)
-                        bf.close();
-                    if (summary != null)
-                        summary.close();
-                    if (runOnClose != null)
-                        runOnClose.run();
-                    if (dfile != null)
-                        dfile.close();
-                    if (ifile != null)
-                        ifile.close();
-                    globalRef.release();
+                        if (bf != null)
+                            bf.close();
+                        if (summary != null)
+                            summary.close();
+                        if (runOnClose != null)
+                            runOnClose.run();
+                        if (dfile != null)
+                            dfile.close();
+                        if (ifile != null)
+                            ifile.close();
+                    }
+                    catch (Throwable t)
+                    {
+                        logger.error(String.format("Encountered error while performing tiding for %s", descriptor), t);
+                        throw t;
+                    }
+                    finally
+                    {
+                        globalRef.release();
+                    }
 
                     if (logger.isTraceEnabled())
                         logger.trace("Async instance tidier for {}, completed", descriptor);
