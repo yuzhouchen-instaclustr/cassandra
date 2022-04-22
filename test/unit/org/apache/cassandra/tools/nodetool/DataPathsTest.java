@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class DataPathsTest extends CQLTester
 {
-    private final String SUBCOMMAND = "datapaths";
+    private static final String SUBCOMMAND = "datapaths";
     
     @BeforeClass
     public static void setup() throws Exception
