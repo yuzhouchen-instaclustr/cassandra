@@ -48,11 +48,19 @@ public interface StartupCheck
     void execute(StartupChecksOptions startupChecksOptions) throws StartupException;
 
     /**
-     *
      * @return type of this startup check for configuration retrieval
      */
     default StartupCheckType getStartupCheckType()
     {
         return StartupCheckType.non_configurable_check;
+    }
+
+    /**
+     * Post-hook after all startup checks succeeded.
+     *
+     * @param options startup check options from descriptor
+     */
+    default void postAction(StartupChecksOptions options)
+    {
     }
 }

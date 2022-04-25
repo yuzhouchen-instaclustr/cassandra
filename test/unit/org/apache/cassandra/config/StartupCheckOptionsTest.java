@@ -25,7 +25,7 @@ import java.util.Set;
 
 import org.junit.Test;
 
-import org.apache.cassandra.service.GcGraceSecondsOnStartupCheck;
+import org.apache.cassandra.service.DataResurrectionCheck;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 import org.apache.cassandra.utils.Pair;
 
@@ -117,7 +117,7 @@ public class StartupCheckOptionsTest
         Map<String, Object> config = new HashMap<String, Object>(){{
             put("excluded_keyspaces", "ks1,ks2,ks3");
         }};
-        GcGraceSecondsOnStartupCheck check = new GcGraceSecondsOnStartupCheck();
+        DataResurrectionCheck check = new DataResurrectionCheck();
         check.getExcludedKeyspaces(config);
 
         Set<String> excludedKeyspaces = check.getExcludedKeyspaces(config);
@@ -139,7 +139,7 @@ public class StartupCheckOptionsTest
                 put("excluded_tables", input);
             }};
 
-            GcGraceSecondsOnStartupCheck check = new GcGraceSecondsOnStartupCheck();
+            DataResurrectionCheck check = new DataResurrectionCheck();
             Set<Pair<String, String>> excludedTables = check.getExcludedTables(config);
             assertEquals(3, excludedTables.size());
             assertTrue(excludedTables.contains(Pair.create("ks1", "tb1")));

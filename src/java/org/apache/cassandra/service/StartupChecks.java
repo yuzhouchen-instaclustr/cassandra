@@ -145,7 +145,7 @@ public class StartupChecks
                                                                       checkDatacenter,
                                                                       checkRack,
                                                                       checkLegacyAuthTables,
-                                                                      new GcGraceSecondsOnStartupCheck());
+                                                                      new DataResurrectionCheck());
 
     public StartupChecks withDefaultTests()
     {
@@ -173,6 +173,18 @@ public class StartupChecks
     {
         for (StartupCheck test : preFlightChecks)
             test.execute(options);
+
+        for (StartupCheck test : preFlightChecks)
+        {
+            try
+            {
+                test.postAction(options);
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Failed to run startup check post-action on " + test.getStartupCheckType());
+            }
+        }
     }
 
     public static final StartupCheck checkJemalloc = new StartupCheck()

@@ -33,12 +33,14 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.service.DataResurrectionCheck.Heartbeat;
+import org.apache.cassandra.utils.Clock;
 
 import static java.time.Instant.ofEpochMilli;
 import static java.util.Collections.singletonList;
 import static org.apache.cassandra.io.util.FileUtils.createTempFile;
 import static org.apache.cassandra.io.util.FileUtils.write;
-import static org.apache.cassandra.service.GcGraceSecondsOnStartupCheck.HEARTBEAT_FILE_CONFIG_PROPERTY;
+import static org.apache.cassandra.service.DataResurrectionCheck.HEARTBEAT_FILE_CONFIG_PROPERTY;
 import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_data_resurrection;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertNotEquals;
@@ -84,6 +86,12 @@ public class StartupChecksTest
     public void tearDown() throws IOException
     {
         new File(sstableDir).deleteRecursive();
+    }
+
+    @AfterClass
+    public static void tearDownClass()
+    {
+        heartbeatFile.delete();
     }
 
     @Test
@@ -165,9 +173,9 @@ public class StartupChecksTest
     }
 
     @Test
-    public void testGcGracePeriodCheck() throws Exception
+    public void testDataResurrectionCheck() throws Exception
     {
-        GcGraceSecondsOnStartupCheck check = new GcGraceSecondsOnStartupCheck() {
+        DataResurrectionCheck check = new DataResurrectionCheck() {
             @Override
             List<String> getKeyspaces()
             {
@@ -181,9 +189,9 @@ public class StartupChecksTest
             }
         };
 
-        Instant currentTime = ofEpochMilli(currentTimeMillis());
+        Heartbeat heartbeat = new Heartbeat(Instant.ofEpochMilli(Clock.Global.currentTimeMillis()));
+        heartbeat.serializeToJsonFile(heartbeatFile);
 
-        write(heartbeatFile, currentTime.toString());
         Thread.sleep(15 * 1000);
 
         startupChecks.withTest(check);

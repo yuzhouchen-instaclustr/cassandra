@@ -18,14 +18,17 @@
 
 package org.apache.cassandra.service;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -33,33 +36,97 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Pair;
 
 import static java.lang.String.format;
-import static java.util.Collections.unmodifiableList;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
-import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.exceptions.StartupException.ERR_WRONG_DISK_STATE;
 import static org.apache.cassandra.exceptions.StartupException.ERR_WRONG_MACHINE_STATE;
-import static org.apache.cassandra.io.util.FileUtils.readLines;
+import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
-public class GcGraceSecondsOnStartupCheck implements StartupCheck
+public class DataResurrectionCheck implements StartupCheck
 {
-    private static final Logger LOGGER = LoggerFactory.getLogger(GcGraceSecondsOnStartupCheck.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(DataResurrectionCheck.class);
 
     public static final String HEARTBEAT_FILE_CONFIG_PROPERTY = "heartbeat_file";
     public static final String EXCLUDED_KEYSPACES_CONFIG_PROPERTY = "excluded_keyspaces";
     public static final String EXCLUDED_TABLES_CONFIG_PROPERTY = "excluded_tables";
 
     public static final String DEFAULT_HEARTBEAT_FILE = "cassandra-heartbeat";
+
+    public static class Heartbeat
+    {
+        private static final ObjectMapper mapper = new ObjectMapper();
+        static
+        {
+            mapper.registerModule(new JavaTimeModule());
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        }
+
+        @JsonProperty("last_heartbeat")
+        public final Instant lastHeartbeat;
+
+        /** needed for jackson serialization */
+        @SuppressWarnings("unused")
+        private Heartbeat() {
+            this.lastHeartbeat = null;
+        }
+
+        public Heartbeat(Instant lastHeartbeat)
+        {
+            this.lastHeartbeat = lastHeartbeat;
+        }
+
+        public void serializeToJsonFile(File outputFile) throws IOException
+        {
+            try (FileOutputStreamPlus out = outputFile.newOutputStream(OVERWRITE))
+            {
+                mapper.writeValue((OutputStream) out, Heartbeat.this);
+            }
+        }
+
+        public static Heartbeat deserializeFromJsonFile(File file) throws IOException
+        {
+            try (FileInputStreamPlus in = file.newInputStream())
+            {
+                return mapper.readValue((InputStream) in, Heartbeat.class);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Heartbeat manifest = (Heartbeat) o;
+            return Objects.equals(lastHeartbeat, manifest.lastHeartbeat);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(lastHeartbeat);
+        }
+    }
 
     @VisibleForTesting
     static class TableGCPeriod
@@ -74,6 +141,27 @@ public class GcGraceSecondsOnStartupCheck implements StartupCheck
         }
     }
 
+    static File getHeartbeatFile(Map<String, Object> config)
+    {
+        String heartbeatFileConfigValue = (String) config.get(HEARTBEAT_FILE_CONFIG_PROPERTY);
+        File heartbeatFile;
+
+        if (heartbeatFileConfigValue != null)
+        {
+            heartbeatFile = new File(heartbeatFileConfigValue);
+        }
+        else
+        {
+            String[] dataFileLocations = DatabaseDescriptor.getLocalSystemKeyspacesDataFileLocations();
+            assert dataFileLocations.length != 0;
+            heartbeatFile = new File(dataFileLocations[0], DEFAULT_HEARTBEAT_FILE);
+        }
+
+        LOGGER.trace("Resolved heartbeat file for data resurrection check: " + heartbeatFile);
+
+        return heartbeatFile;
+    }
+
     @Override
     public StartupChecks.StartupCheckType getStartupCheckType()
     {
@@ -86,7 +174,7 @@ public class GcGraceSecondsOnStartupCheck implements StartupCheck
         if (options.isDisabled(getStartupCheckType()))
             return;
 
-        Map<String, Object> config = options.getConfig(getStartupCheckType());
+        Map<String, Object> config = options.getConfig(StartupChecks.StartupCheckType.check_data_resurrection);
         File heartbeatFile = getHeartbeatFile(config);
 
         if (!heartbeatFile.exists())
@@ -95,13 +183,21 @@ public class GcGraceSecondsOnStartupCheck implements StartupCheck
             return;
         }
 
-        // we expect heartbeat value to be on the first line
-        Optional<Instant> heartbeatOptional = parseHeartbeatFile(heartbeatFile);
-        if (!heartbeatOptional.isPresent())
+        Heartbeat heartbeat;
+
+        try
+        {
+            heartbeat = Heartbeat.deserializeFromJsonFile(heartbeatFile);
+        }
+        catch (IOException ex)
+        {
+            throw new StartupException(ERR_WRONG_DISK_STATE, "Failed to deserialize heartbeat file " + heartbeatFile);
+        }
+
+        if (heartbeat.lastHeartbeat == null)
             return;
 
-        Instant heartbeat = heartbeatOptional.get();
-        long heartbeatMillis = heartbeat.toEpochMilli();
+        long heartbeatMillis = heartbeat.lastHeartbeat.toEpochMilli();
 
         List<Pair<String, String>> violations = new ArrayList<>();
 
@@ -134,23 +230,39 @@ public class GcGraceSecondsOnStartupCheck implements StartupCheck
 
             String exceptionMessage = format("There are tables for which gcGraceSeconds is older " +
                                              "then the lastly known time Cassandra node was up based " +
-                                             "on its heartbeat %s. Cassandra node will not start " +
+                                             "on its heartbeat %s with timestamp %s. Cassandra node will not start " +
                                              "as it would likely introduce data consistency " +
-                                             "issues (zombies etc). Please resolve these issues manually " +
-                                             "and start the node again. Invalid tables: %s",
-                                             heartbeat, invalidTables);
+                                             "issues (zombies etc). Please resolve these issues manually, " +
+                                             "then remove the heartbeat and start the node again. Invalid tables: %s",
+                                             heartbeatFile, heartbeat.lastHeartbeat, invalidTables);
 
             throw new StartupException(ERR_WRONG_MACHINE_STATE, exceptionMessage);
         }
     }
 
-    static File getHeartbeatFile(Map<String, Object> config)
+    @Override
+    public void postAction(StartupChecksOptions options)
     {
-        String heartbeatFileConfigValue = (String) config.get(HEARTBEAT_FILE_CONFIG_PROPERTY);
+        // Schedule heartbeating after all checks have passed, not as part of the check,
+        // as it might happen that other checks after it might fail, but we would be heartbeating already.
+        if (options.isEnabled(StartupChecks.StartupCheckType.check_data_resurrection))
+        {
+            Map<String, Object> config = options.getConfig(StartupChecks.StartupCheckType.check_data_resurrection);
+            File heartbeatFile = DataResurrectionCheck.getHeartbeatFile(config);
 
-        return heartbeatFileConfigValue == null
-               ? new File(DEFAULT_HEARTBEAT_FILE)
-               : new File(heartbeatFileConfigValue);
+            ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> {
+                Heartbeat heartbeat = new Heartbeat(Instant.ofEpochMilli(Clock.Global.currentTimeMillis()));
+                try
+                {
+                    heartbeatFile.parent().createDirectoriesIfNotExists();
+                    heartbeat.serializeToJsonFile(heartbeatFile);
+                }
+                catch (IOException ex)
+                {
+                    DataResurrectionCheck.LOGGER.error("Unable to serialize heartbeat to " + heartbeatFile, ex);
+                }
+            }, 0, CassandraRelevantProperties.DATA_RESURRECTION_HEARTBEAT_PERIOD.getInt(), MILLISECONDS);
+        }
     }
 
     @VisibleForTesting
@@ -208,46 +320,5 @@ public class GcGraceSecondsOnStartupCheck implements StartupCheck
         return ksmd.tables.stream()
                           .filter(tmd -> tmd.params.gcGraceSeconds > 0)
                           .map(tmd -> new TableGCPeriod(tmd.name, tmd.params.gcGraceSeconds)).collect(toList());
-    }
-
-    @VisibleForTesting
-    static Optional<Instant> parseHeartbeatFile(File heartbeatFile) throws StartupException
-    {
-        List<String> heartbeatFileLines;
-
-        try
-        {
-            heartbeatFileLines = unmodifiableList(readLines(heartbeatFile));
-        }
-        catch (Exception ex)
-        {
-            throw new StartupException(ERR_WRONG_DISK_STATE,
-                                       format("Unable to read heartbeat file %s", heartbeatFile.absolutePath()));
-        }
-
-        if (heartbeatFileLines.isEmpty())
-        {
-            LOGGER.debug("Heartbeat file {} is empty! Skipping heartbeat startup check.", heartbeatFile.absolutePath());
-            return Optional.empty();
-        }
-
-        // we expect heartbeat value to be on the first line
-        Instant heartbeat = parseHeartbeat(heartbeatFileLines.get(0));
-        LOGGER.debug("Resolved heartbeat with the lastly know time this node was running: {}", heartbeat);
-
-        return Optional.of(heartbeat);
-    }
-
-    private static Instant parseHeartbeat(String heartbeatLine) throws StartupException
-    {
-        String heartbeat = heartbeatLine.replaceAll(LINE_SEPARATOR.getString(), "");
-        try
-        {
-            return Instant.parse(heartbeat);
-        }
-        catch (DateTimeParseException ex)
-        {
-            throw new StartupException(ERR_WRONG_MACHINE_STATE, format("Unable to parse heartbeat '%s'!", heartbeat));
-        }
     }
 }
