@@ -1,5 +1,6 @@
 2.2.8.1
  * Rebuild from targeted replica (CASSANDRA-9875)
+ * Bump versions of log4j related dependencies to address CVE-2021-42550
 
 2.2.8
  * Fix exceptions when enabling gossip on nodes that haven't joined the ring (CASSANDRA-12253)

@@ -1,6 +1,12 @@
-cassandra (2.2.8) unstable; urgency=medium
+cassandra (2.2.8.1) unstable; urgency=medium
 
   * New release 
+
+ -- Tanvir Hossain <tanvir.hossain@instaclustr.com>  Fri, 27 May 2022 12:00:00 +1000
+
+cassandra (2.2.8) unstable; urgency=medium
+
+  * New release
 
  -- Michael Shuler <michael@pbandjelly.org>  Fri, 23 Sep 2016 16:35:25 -0500
 
