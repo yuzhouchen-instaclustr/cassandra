@@ -1,3 +1,6 @@
+2.2.8.1
+ * Rebuild from targeted replica (CASSANDRA-9875)
+
 2.2.8
  * Fix exceptions when enabling gossip on nodes that haven't joined the ring (CASSANDRA-12253)
  * Fix authentication problem when invoking clqsh copy from a SOURCE command (CASSANDRA-12642)
