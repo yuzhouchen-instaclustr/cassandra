@@ -502,7 +502,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return 0L;
     }
 
-    private boolean isShutdown(InetAddressAndPort endpoint)
+    public boolean isShutdown(InetAddressAndPort endpoint)
     {
         EndpointState epState = endpointStateMap.get(endpoint);
         if (epState == null)

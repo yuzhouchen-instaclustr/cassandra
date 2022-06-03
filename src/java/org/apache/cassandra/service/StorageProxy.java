@@ -2344,6 +2344,9 @@ public class StorageProxy implements StorageProxyMBean
         long endpointDowntime = Gossiper.instance.getEndpointDowntime(endpoint);
         boolean hintWindowExpired = endpointDowntime > maxHintWindow;
 
+        if (Gossiper.instance.isShutdown(endpoint))
+            return false;
+
         UUID hostIdForEndpoint = StorageService.instance.getHostIdForEndpoint(endpoint);
         if (hostIdForEndpoint == null)
         {
