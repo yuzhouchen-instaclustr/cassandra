@@ -26,6 +26,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 
+import org.apache.commons.lang3.mutable.MutableInt;
+
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.*;
@@ -295,20 +297,23 @@ public class DataResolver extends ResponseResolver
 
         public void close()
         {
+            MutableInt counter = new MutableInt();
             try
             {
-                FBUtilities.waitOnFutures(repairResults, DatabaseDescriptor.getWriteRpcTimeout());
+                FBUtilities.waitOnFutures(repairResults, DatabaseDescriptor.getWriteRpcTimeout(), counter);
             }
             catch (TimeoutException ex)
             {
                 // We got all responses, but timed out while repairing
-                int blockFor = consistency.blockFor(keyspace);
+                int received = repairResults.size();
                 if (Tracing.isTracing())
-                    Tracing.trace("Timed out while read-repairing after receiving all {} data and digest responses", blockFor);
+                    Tracing.trace("Timed out while read-repairing after receiving {} from {} data and digest responses",
+                                  counter.intValue(), received);
                 else
-                    logger.debug("Timeout while read-repairing after receiving all {} data and digest responses", blockFor);
+                    logger.debug("Timeout while read-repairing after receiving {} from {} data and digest responses",
+                                 counter.intValue(), received);
 
-                throw new ReadTimeoutException(consistency, blockFor-1, blockFor, true);
+                throw new ReadTimeoutException(consistency, counter.intValue(), received, true);
             }
         }
 

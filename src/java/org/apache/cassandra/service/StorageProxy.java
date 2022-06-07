@@ -1970,7 +1970,7 @@ public class StorageProxy implements StorageProxyMBean
                 // the caught exception here will have CL.ALL from the repair command,
                 // not whatever CL the initial command was at (CASSANDRA-7947)
                 int blockFor = consistency.blockFor(Keyspace.open(command.metadata().ksName));
-                throw new ReadTimeoutException(consistency, blockFor-1, blockFor, true);
+                throw new ReadTimeoutException(consistency, e.received, blockFor, true);
             }
         }
 
