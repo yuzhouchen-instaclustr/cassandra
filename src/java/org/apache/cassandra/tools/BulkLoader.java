@@ -26,6 +26,7 @@ import javax.net.ssl.SSLEngine;
 import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
 import com.datastax.driver.core.SSLOptions;
+
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.apache.commons.cli.Option;
@@ -66,7 +67,8 @@ public class BulkLoader
                         buildSSLOptions(options.clientEncOptions)),
                         handler,
                         options.connectionsPerHost,
-                        options.targetKeyspace);
+                        options.targetKeyspace,
+                        options.targetTable);
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
         DatabaseDescriptor.setInterDCStreamThroughputOutboundMegabitsPerSec(options.interDcThrottle);
         StreamResultFuture future = null;
@@ -82,7 +84,6 @@ public class BulkLoader
             {
                 future = loader.stream(options.ignores, indicator);
             }
-
         }
         catch (Exception e)
         {
@@ -240,7 +241,7 @@ public class BulkLoader
             sb.append(String.format("   %-24s: %-10s%n", "Total bytes transferred ", FBUtilities.prettyPrintMemory(lastProgress)));
             sb.append(String.format("   %-24s: %-10s%n", "Total duration ", durationMS + " ms"));
             sb.append(String.format("   %-24s: %-10s%n", "Average transfer rate ", FBUtilities.prettyPrintMemoryPerSecond(lastProgress, end - start)));
-            sb.append(String.format("   %-24s: %-10s%n", "Peak transfer rate ",  FBUtilities.prettyPrintMemoryPerSecond(peak)));
+            sb.append(String.format("   %-24s: %-10s%n", "Peak transfer rate ", FBUtilities.prettyPrintMemoryPerSecond(peak)));
             System.out.println(sb.toString());
         }
     }
@@ -308,9 +309,10 @@ public class BulkLoader
     {
         /**
          * Add option with argument and argument name
-         * @param opt shortcut for option name
-         * @param longOpt complete option name
-         * @param argName argument name
+         *
+         * @param opt         shortcut for option name
+         * @param longOpt     complete option name
+         * @param argName     argument name
          * @param description description of the option
          * @return updated Options object
          */
@@ -341,8 +343,9 @@ public class BulkLoader
 
         /**
          * Add option without argument
-         * @param opt shortcut for option name
-         * @param longOpt complete option name
+         *
+         * @param opt         shortcut for option name
+         * @param longOpt     complete option name
          * @param description description of the option
          * @return updated Options object
          */
