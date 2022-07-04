@@ -68,7 +68,11 @@ public class ListSnapshots extends NodeToolCmd
             TableBuilder table = new TableBuilder();
             // display column names only once
             final List<String> indexNames = snapshotDetails.entrySet().iterator().next().getValue().getTabularType().getIndexNames();
-            table.add(indexNames.toArray(new String[indexNames.size()]));
+
+            if (includeEphemeral)
+                table.add(indexNames.toArray(new String[indexNames.size()]));
+            else
+                table.add(indexNames.subList(0, indexNames.size() - 1).toArray(new String[indexNames.size() - 1]));
 
             for (final Map.Entry<String, TabularData> snapshotDetail : snapshotDetails.entrySet())
             {
@@ -76,12 +80,15 @@ public class ListSnapshots extends NodeToolCmd
                 for (Object eachValue : values)
                 {
                     final List<?> value = (List<?>) eachValue;
-                    table.add(value.toArray(new String[value.size()]));
+                    if (includeEphemeral)
+                        table.add(value.toArray(new String[value.size()]));
+                    else
+                        table.add(value.subList(0, value.size() - 1).toArray(new String[value.size() - 1]));
                 }
             }
             table.printTo(out);
 
-            out.println("\nTotal TrueDiskSpaceUsed: " + FileUtils.stringifyFileSize(trueSnapshotsSize) + "\n");
+            out.println("\nTotal TrueDiskSpaceUsed: " + FileUtils.stringifyFileSize(trueSnapshotsSize) + '\n');
         }
         catch (Exception e)
         {
