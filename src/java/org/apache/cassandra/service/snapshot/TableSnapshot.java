@@ -267,7 +267,8 @@ public class TableSnapshot
                 createdAt = manifest.createdAt;
                 expiresAt = manifest.expiresAt;
                 // a snapshot may be ephemeral when it has a marker file (old way) or flag in manifest (new way)
-                ephemeral = manifest.ephemeral;
+                if (!ephemeral)
+                    ephemeral = manifest.ephemeral;
             }
             catch (IOException e)
             {
