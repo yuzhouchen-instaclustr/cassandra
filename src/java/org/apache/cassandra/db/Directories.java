@@ -972,7 +972,8 @@ public class Directories
         return snapshots;
     }
 
-    private TableSnapshot buildSnapshot(String tag, SnapshotManifest manifest, Set<File> snapshotDirs) {
+    private TableSnapshot buildSnapshot(String tag, SnapshotManifest manifest, Set<File> snapshotDirs)
+    {
         boolean ephemeral = manifest != null ? manifest.isEphemeral() : isLegacyEphemeralSnapshot(snapshotDirs);
         Instant createdAt = manifest == null ? null : manifest.createdAt;
         Instant expiresAt = manifest == null ? null : manifest.expiresAt;
@@ -980,7 +981,8 @@ public class Directories
                                  snapshotDirs, ephemeral);
     }
 
-    private static boolean isLegacyEphemeralSnapshot(Set<File> snapshotDirs) {
+    private static boolean isLegacyEphemeralSnapshot(Set<File> snapshotDirs)
+    {
         return snapshotDirs.stream().map(d -> new File(d, "ephemeral.snapshot")).anyMatch(File::exists);
     }
 

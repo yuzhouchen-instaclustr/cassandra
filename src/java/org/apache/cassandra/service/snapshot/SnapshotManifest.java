@@ -51,7 +51,8 @@ public class SnapshotManifest
 
     /** needed for jackson serialization */
     @SuppressWarnings("unused")
-    private SnapshotManifest() {
+    private SnapshotManifest()
+    {
         this.files = null;
         this.createdAt = null;
         this.expiresAt = null;

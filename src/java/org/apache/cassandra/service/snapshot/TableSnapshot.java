@@ -253,6 +253,7 @@ public class TableSnapshot
 
             // check if an ephemeral marker file exists only in case it is not already ephemeral
             // by reading it from manifest
+            // TODO remove this on Cassandra 4.3 release, see CASSANDRA-16911
             if (!ephemeral && new File(snapshotDir, "ephemeral.snapshot").exists())
                 ephemeral = true;
         }

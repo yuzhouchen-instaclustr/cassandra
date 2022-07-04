@@ -567,7 +567,8 @@ public class DirectoriesTest
             final Directories directories = new Directories(cfm, toDataDirectories(tempDataDir));
             assertEquals(cfDir(cfm), directories.getDirectoryForNewSSTables());
             final String n = Long.toString(nanoTime());
-            Callable<File> directoryGetter = () -> {
+            Callable<File> directoryGetter = () ->
+            {
                 Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, sstableId(1), SSTableFormat.Type.BIG);
                 return Directories.getSnapshotDirectory(desc, n);
             };
